@@ -1,15 +1,21 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require("cors");
-const mongoose = require('mongoose');
-const authRoutes = require('../server/routes/auth');
-const adminRoutes = require('../server/routes/admin');
+const cors = require('cors');
+const http = require('http');
+const connectToDatabase = require('./database/db');
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
+const productRoutes = require('./routes/product');
+const orderRoutes = require('./routes/order');
+const cartRoutes = require('./routes/cart');
+const adminOrderRoutes = require('./routes/adminOrders');
 
 const app = express();
 
 // Middleware to parse JSON requests
 app.use(express.json());
 
+// Configure CORS
 const corsOptions = {
     origin: true,
     credentials: true,
@@ -17,20 +23,14 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-// Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/fixpharmacy', {
 
-})
-    .then(() => console.log("MongoDB connected."))
-    .catch(err => console.error("MongoDB connection error:", err));
-
-// Routes
+// Set up routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/products', require('../server/routes/product'));
-app.use('/api/orders', require('../server/routes/order'));
-app.use('/api/cart', require('../server/routes/cart'));
-app.use('/api/admin/orders', require('../server/routes/adminOrders'));
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/admin/orders', adminOrderRoutes);
 
 // Global error handling middleware
 app.use((err, req, res, next) => {
@@ -42,4 +42,18 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5500;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const server = http.createServer(app);
+
+const startServer = async () => {
+    try {
+        await connectToDatabase();
+        server.listen(PORT, () => {
+            console.log(`Server is Running on PORT ${PORT}`);
+        });
+    } catch (error) {
+        console.error("Failed to connect to the database. Server not started.", error);
+        process.exit(1);
+    }
+};
+
+startServer();
