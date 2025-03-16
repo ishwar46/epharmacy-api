@@ -32,6 +32,11 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/admin/orders', adminOrderRoutes);
 
+app.get("/", (req, res) => {
+    res.send("Hello!!");
+});
+
+
 // Global error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
