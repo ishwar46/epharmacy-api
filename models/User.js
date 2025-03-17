@@ -20,7 +20,7 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please add a password'],
         minlength: 6,
-        select: false // Hides password field by default
+        select: false
     },
     // New field to store the encrypted plain password for admin use
     plainPassword: {
@@ -30,7 +30,7 @@ const UserSchema = new mongoose.Schema({
     },
     role: {
         type: String,
-        enum: ['customer', 'admin', 'pharmacist'],
+        enum: ['customer', 'admin', 'delivery'],
         default: 'customer'
     },
     createdAt: {

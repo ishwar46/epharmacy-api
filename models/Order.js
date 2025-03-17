@@ -6,6 +6,14 @@ const OrderItemSchema = new mongoose.Schema({
         ref: 'Product',
         required: true
     },
+    productName: {
+        type: String,
+        required: true
+    },
+    productDescription: {
+        type: String,
+        required: true
+    },
     quantity: {
         type: Number,
         required: true,
@@ -15,7 +23,7 @@ const OrderItemSchema = new mongoose.Schema({
         type: Number,
         required: true
     }
-});
+}, { _id: false });
 
 const ShippingAddressSchema = new mongoose.Schema({
     addressLine1: {
@@ -41,7 +49,7 @@ const ShippingAddressSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please provide country']
     }
-});
+}, { _id: false });
 
 const ContactInfoSchema = new mongoose.Schema({
     phone: {
@@ -52,9 +60,14 @@ const ContactInfoSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please provide a contact email']
     }
-});
+}, { _id: false });
 
 const OrderSchema = new mongoose.Schema({
+    orderNumber: {
+        type: String,
+        unique: true,
+        required: true
+    },
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -86,7 +99,7 @@ const OrderSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'],
+        enum: ['pending', 'processing', 'confirmed', 'shipped', 'out for delivery', 'delivered', 'cancelled'],
         default: 'pending'
     },
     paymentMethod: {
@@ -95,7 +108,7 @@ const OrderSchema = new mongoose.Schema({
     },
     paymentStatus: {
         type: String,
-        enum: ['pending', 'paid', 'failed'],
+        enum: ['pending', 'paid', 'failed', 'refunded'],
         default: 'pending'
     },
     amountPaid: {
@@ -109,6 +122,13 @@ const OrderSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     }
+}, { timestamps: true });
+
+OrderSchema.pre('save', function (next) {
+    if (this.paymentStatus === 'paid' && !this.paymentDate) {
+        this.paymentDate = new Date();
+    }
+    next();
 });
 
 module.exports = mongoose.model('Order', OrderSchema);

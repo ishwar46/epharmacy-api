@@ -25,7 +25,7 @@ exports.createOrder = async (req, res, next) => {
         let orderItems = [];
         let totalPrice = 0;
 
-        // Validate cart items and compute total price
+        // Validate cart items and compute total price, embedding product details
         for (const item of cart.items) {
             const product = item.product;
             if (item.quantity > product.stock) {
@@ -36,45 +36,53 @@ exports.createOrder = async (req, res, next) => {
             }
             orderItems.push({
                 product: product._id,
+                productName: product.name,
+                productDescription: product.description,
                 quantity: item.quantity,
                 price: product.price
             });
             totalPrice += product.price * item.quantity;
         }
 
+        // Generate Auto-Increment Order Number
+        const lastOrder = await Order.findOne().sort({ createdAt: -1 });
+        let orderNumber = "#FIX001";
+        if (lastOrder && lastOrder.orderNumber) {
+            const lastNumber = parseInt(lastOrder.orderNumber.replace("#FIX", ""));
+            orderNumber = `#FIX${(lastNumber + 1).toString().padStart(3, "0")}`;
+        }
+
         // Handle promo code validation
         let discount = 0;
         let finalPrice = totalPrice;
         if (promoCode) {
-            // Only valid promo code is 'FIRSTORDER'
             if (promoCode !== 'FIRSTORDER') {
                 return res.status(400).json({
                     success: false,
                     message: 'Promo code is not valid'
                 });
             } else {
-                // Check if user already has an order
                 const previousOrders = await Order.find({ user: userId });
-                if (previousOrders && previousOrders.length > 0) {
+                if (previousOrders.length > 0) {
                     return res.status(400).json({
                         success: false,
                         message: messages.errors.promoAlreadyUsed
                     });
                 }
-                // Apply a 10% discount for first order
                 discount = totalPrice * 0.10;
                 finalPrice = totalPrice - discount;
             }
         }
 
-        // Create the order with shipping details and contact information
+        // Create the order with generated order number
         const order = await Order.create({
             user: userId,
+            orderNumber,
             orderItems,
             totalPrice,
             discount,
             finalPrice,
-            promoCodeUsed: promoCode && promoCode === 'FIRSTORDER' ? promoCode : null,
+            promoCodeUsed: promoCode === 'FIRSTORDER' ? promoCode : null,
             shippingAddress,
             contactInfo,
             paymentMethod: 'Cash on Delivery'
@@ -99,23 +107,36 @@ exports.createOrder = async (req, res, next) => {
     }
 };
 
+
 exports.getOrders = async (req, res, next) => {
     try {
-        const orders = await Order.find({ user: req.user._id });
+
+        const orders = await Order.find()
+            .populate("user", "name email");
+
         res.status(200).json({ success: true, count: orders.length, data: orders });
     } catch (error) {
         next(error);
     }
 };
 
+
+
 exports.getOrder = async (req, res, next) => {
     try {
-        const order = await Order.findById(req.params.id);
+        const order = await Order.findById(req.params.id)
+            .populate("user", "name email");
+
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
+
         res.status(200).json({ success: true, data: order });
     } catch (error) {
         next(error);
     }
 };
+
+
+
+

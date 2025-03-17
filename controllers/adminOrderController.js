@@ -58,8 +58,6 @@ exports.updateOrder = async (req, res, next) => {
             order.paymentDate = paymentDate;
         }
 
-        // If order is being cancelled and wasn't already cancelled,
-        // refill the stock by adding back the ordered quantities.
         if (status === 'cancelled' && previousStatus !== 'cancelled') {
             for (const item of order.orderItems) {
                 await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
@@ -67,6 +65,10 @@ exports.updateOrder = async (req, res, next) => {
         }
 
         await order.save();
+
+        await order.populate("user", "name email contactInfo");
+
+
         res.status(200).json({
             success: true,
             message: 'Order updated successfully',
