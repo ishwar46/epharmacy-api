@@ -1,5 +1,4 @@
 const Order = require('../models/Order');
-const Product = require('../models/Product');
 
 // Get all orders
 // getAllOrders: filtering by user's email
@@ -30,7 +29,7 @@ exports.getOrderById = async (req, res, next) => {
     }
 };
 
-// Update order status and payment details (Admin only)
+// Update order status and upload customer signature (Admin only)
 exports.updateOrder = async (req, res, next) => {
     try {
         const {
@@ -44,32 +43,29 @@ exports.updateOrder = async (req, res, next) => {
         } = req.body;
 
         const order = await Order.findById(req.params.orderId);
-
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found" });
         }
 
-        // Save previous status to check if the order was already canceled
-        const previousStatus = order.status;
-
-        // ✅ Update status if provided
+        // Update status if provided
         if (status) order.status = status;
 
-        // ✅ Update payment details if provided
+        // Update payment details if provided
         if (paymentStatus) order.paymentStatus = paymentStatus;
         if (amountPaid !== undefined) order.amountPaid = amountPaid;
         if (paymentDate) order.paymentDate = paymentDate;
 
-        // ✅ Update delivery details
+        // Update delivery details
         if (deliveryPersonName) order.deliveryPersonName = deliveryPersonName;
         if (deliveryPersonContact) order.deliveryPersonContact = deliveryPersonContact;
         if (estimatedArrivalTime) order.estimatedArrivalTime = estimatedArrivalTime;
 
-        // ✅ If order is cancelled, restore stock for each item
-        if (status === "cancelled" && previousStatus !== "cancelled") {
-            for (const item of order.orderItems) {
-                await Product.findByIdAndUpdate(item.product, { $inc: { stock: item.quantity } });
-            }
+        // Check what Multer captured
+        console.log("req.file:", req.file);
+
+        // If order is delivered and a file is provided, store path
+        if (status === "delivered" && req.file) {
+            order.customerSignature = `/uploads/clientSignatures/${req.file.filename}`;
         }
 
         await order.save();

@@ -44,6 +44,8 @@ const OrderSchema = new mongoose.Schema(
         deliveryPersonName: { type: String },
         deliveryPersonContact: { type: String },
         estimatedArrivalTime: { type: String },
+
+        customerSignature: { type: String },
     },
     { timestamps: true }
 );
