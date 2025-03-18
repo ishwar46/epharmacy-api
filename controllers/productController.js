@@ -68,10 +68,23 @@ exports.getProduct = async (req, res, next) => {
 // @access  Private/Admin
 exports.createProduct = async (req, res, next) => {
     try {
-        const product = await Product.create(req.body);
+        // If images were uploaded, build an array of paths
+        let uploadedPaths = [];
+        if (req.files && req.files.length > 0) {
+            uploadedPaths = req.files.map(file => `/uploads/productImages/${file.filename}`);
+        }
+
+        // req.body is text fields from the form; Add images array
+        const newProductData = {
+            ...req.body,
+            images: uploadedPaths
+        };
+
+        const product = await Product.create(newProductData);
+
         res.status(201).json({
             success: true,
-            message: messages.success.productAdded,
+            message: messages.success.productAdded || 'Product created successfully',
             data: product
         });
     } catch (error) {
@@ -79,27 +92,49 @@ exports.createProduct = async (req, res, next) => {
     }
 };
 
+
 // @desc    Update an existing product (Admin only)
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 exports.updateProduct = async (req, res, next) => {
     try {
-        const product = await Product.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
-            runValidators: true
-        });
-        if (!product) {
-            return res.status(404).json({ success: false, message: messages.errors.productNotFound });
+        let updateFields = { ...req.body };
+
+        // If new images were uploaded, append them to existing or replace them
+        if (req.files && req.files.length > 0) {
+            const newPaths = req.files.map(file => `/uploads/productImages/${file.filename}`);
+
+            // Decide if you want to MERGE or REPLACE existing images
+            // 1) MERGE example:
+            // updateFields.images = [...(req.body.images || []), ...newPaths];
+
+            // 2) REPLACE example (completely new set of images):
+            updateFields.images = newPaths;
         }
+
+        const product = await Product.findByIdAndUpdate(
+            req.params.id,
+            updateFields,
+            { new: true, runValidators: true }
+        );
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: messages.errors.productNotFound || "Product not found"
+            });
+        }
+
         res.status(200).json({
             success: true,
-            message: messages.success.productUpdated,
+            message: messages.success.productUpdated || "Product updated successfully",
             data: product
         });
     } catch (error) {
         next(error);
     }
 };
+
 
 // @desc    Delete a product (Admin only)
 // @route   DELETE /api/products/:id

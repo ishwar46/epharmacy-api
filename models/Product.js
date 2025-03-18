@@ -1,6 +1,12 @@
+// models/Product.js
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
+    sku: {
+        type: String,
+        unique: true,
+        required: [true, 'Please provide a unique SKU']
+    },
     name: {
         type: String,
         required: [true, 'Please add a product name']
@@ -25,7 +31,6 @@ const ProductSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'Please add the stock quantity']
     },
-
     category: {
         type: String,
         enum: [
@@ -77,7 +82,6 @@ const ProductSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please specify the product brand or manufacturer']
     },
-
     medicineType: {
         type: String,
         enum: ['OTC', 'Prescription'],
