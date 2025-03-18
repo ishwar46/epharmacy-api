@@ -22,33 +22,52 @@ const UserSchema = new mongoose.Schema({
         minlength: 6,
         select: false
     },
-    // New field to store the encrypted plain password for admin use
+    // Encrypted version of the plain password (for admin)
     plainPassword: {
         type: String,
-        required: [false, 'Plain password is required'],
-        select: false // Not returned by default in queries
+        select: false
     },
+
     role: {
         type: String,
         enum: ['customer', 'admin', 'delivery'],
         default: 'customer'
     },
+
+    phone: {
+        type: String,
+        default: '',
+    },
+
+    address: { type: String, default: '' },
+    lat: { type: Number },
+    lng: { type: Number },
+
+
+    profilePicture: {
+        type: String,
+        default: '',
+    },
+
     createdAt: {
         type: Date,
         default: Date.now
     }
 });
 
-// Hash password before saving and encrypt the plain password for admin access
+// Pre-save hook: encrypt plainPassword and hash password
 UserSchema.pre('save', async function (next) {
+    // Only run if the password is modified
     if (!this.isModified('password')) return next();
+
     try {
-        // Encrypt and store the plain password (for admin purposes only)
+        // 1) Encrypt plain password
         this.plainPassword = encrypt(this.password);
 
-        // Hash the password for authentication
+        // 2) Hash for authentication
         const salt = await bcrypt.genSalt(10);
         this.password = await bcrypt.hash(this.password, salt);
+
         next();
     } catch (error) {
         next(error);

@@ -15,7 +15,7 @@ const generateToken = (id) => {
 // @access  Public
 exports.register = async (req, res, next) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, phone, address } = req.body;
 
         // Check if user already exists
         const existingUser = await User.findOne({ email });
@@ -27,7 +27,16 @@ exports.register = async (req, res, next) => {
         }
 
         // Create user
-        const user = await User.create({ name, email, password, role });
+        const user = await User.create({
+            name,
+            email,
+            password,
+            role,
+            phone,
+            address,
+        });
+
+        // Return success
         res.status(201).json({
             success: true,
             message: messages.success.registration,
@@ -36,6 +45,8 @@ exports.register = async (req, res, next) => {
                 name: user.name,
                 email: user.email,
                 role: user.role,
+                phone: user.phone,
+                address: user.address,
                 token: generateToken(user._id)
             }
         });
