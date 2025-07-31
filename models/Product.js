@@ -1,4 +1,3 @@
-// models/Product.js
 const mongoose = require('mongoose');
 
 const ProductSchema = new mongoose.Schema({
@@ -38,6 +37,7 @@ const ProductSchema = new mongoose.Schema({
             'Oral Care',
             'Antiseptic & Disinfectant',
             'Anti-Hypertensive',
+            'Analgesic/Antipyretic',
             'Anti-Histamin/Allergy',
             'Cough & Cold',
             'Cream and Ointment',

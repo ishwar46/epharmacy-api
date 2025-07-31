@@ -9,12 +9,26 @@ const OrderSchema = new mongoose.Schema(
                 product: { type: mongoose.Schema.Types.ObjectId, ref: "Product", required: true },
                 productName: { type: String, required: true },
                 productDescription: { type: String, required: true },
+                productBrand: { type: String },
+                productCategory: { type: String },
                 quantity: { type: Number, required: true, min: 1 },
                 price: { type: Number, required: true },
             },
         ],
         totalPrice: { type: Number, required: true },
+        discount: { type: Number, default: 0 },
         finalPrice: { type: Number, required: true },
+        
+        // Promo code fields
+        promoCodeUsed: { type: String },
+        promoDetails: {
+            code: { type: String },
+            description: { type: String },
+            type: { type: String, enum: ['percentage', 'fixed'] },
+            value: { type: Number }, 
+            discountApplied: { type: Number } 
+        },
+        
         shippingAddress: {
             addressLine1: { type: String, required: true },
             city: { type: String, required: true },
