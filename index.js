@@ -8,7 +8,7 @@ const connectToDatabase = require('./database/db');
 // Import all routes
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
-const productRoutes = require('./routes/product');
+const productRoutes = require('./routes/products');
 const orderRoutes = require('./routes/order');
 const cartRoutes = require('./routes/cart');
 const adminOrderRoutes = require('./routes/adminOrders');

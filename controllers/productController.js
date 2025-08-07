@@ -1,90 +1,137 @@
 const Product = require('../models/Product');
-const messages = require('../config/messages');
 
-// @desc    Get all products with search & filter functionality
+// @desc    Get all products
 // @route   GET /api/products
 // @access  Public
 exports.getProducts = async (req, res, next) => {
     try {
-        const query = {};
+        const {
+            search,
+            category,
+            medicineType,
+            minPrice,
+            maxPrice,
+            inStock,
+            page = 1,
+            limit = 20,
+            sortBy = 'createdAt',
+            sortOrder = 'desc'
+        } = req.query;
 
-        // Search by product name or description (case-insensitive)
-        if (req.query.search) {
+        // Build query
+        const query = { status: 'active' };
+
+        // Search by name, brand, or description
+        if (search) {
             query.$or = [
-                { name: { $regex: req.query.search, $options: 'i' } },
-                { description: { $regex: req.query.search, $options: 'i' } }
+                { name: { $regex: search, $options: 'i' } },
+                { brand: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
             ];
         }
 
         // Filter by category
-        if (req.query.category) {
-            query.category = req.query.category;
+        if (category) {
+            query.category = category;
         }
 
-        // Filter by price range
-        if (req.query.minPrice || req.query.maxPrice) {
+        // Filter by medicine type
+        if (medicineType) {
+            query.medicineType = medicineType;
+        }
+
+        // Filter by stock availability
+        if (inStock === 'true') {
+            query.$expr = { $gt: [{ $subtract: ['$stock', '$reservedStock'] }, 0] };
+        }
+
+        // Price range filter
+        if (minPrice || maxPrice) {
             query.price = {};
-            if (req.query.minPrice) {
-                query.price.$gte = Number(req.query.minPrice);
-            }
-            if (req.query.maxPrice) {
-                query.price.$lte = Number(req.query.maxPrice);
-            }
+            if (minPrice) query.price.$gte = Number(minPrice);
+            if (maxPrice) query.price.$lte = Number(maxPrice);
         }
 
-        // Filter by medicine type (OTC or Prescription)
-        if (req.query.medicineType) {
-            query.medicineType = req.query.medicineType;
-        }
+        // Pagination
+        const skip = (page - 1) * limit;
 
-        const products = await Product.find(query);
+        // Sorting
+        const sort = {};
+        sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+        // Execute query
+        const products = await Product.find(query)
+            .sort(sort)
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const total = await Product.countDocuments(query);
+
+        // Add computed fields to response
+        const transformedProducts = products.map(product => {
+            const productObj = product.toObject({ virtuals: true });
+            return productObj;
+        });
+
         res.status(200).json({
             success: true,
             count: products.length,
-            data: products
+            total,
+            totalPages: Math.ceil(total / limit),
+            currentPage: parseInt(page),
+            data: transformedProducts
         });
     } catch (error) {
         next(error);
     }
 };
 
-// @desc    Get a single product's details
+// @desc    Get single product
 // @route   GET /api/products/:id
 // @access  Public
 exports.getProduct = async (req, res, next) => {
     try {
         const product = await Product.findById(req.params.id);
-        if (!product) {
-            return res.status(404).json({ success: false, message: messages.errors.productNotFound });
+
+        if (!product || product.status !== 'active') {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
         }
-        res.status(200).json({ success: true, data: product });
+
+        const productObj = product.toObject({ virtuals: true });
+
+        res.status(200).json({
+            success: true,
+            data: productObj
+        });
     } catch (error) {
         next(error);
     }
 };
 
-// @desc    Create a new product (Admin only)
+// @desc    Create new product
 // @route   POST /api/products
 // @access  Private/Admin
 exports.createProduct = async (req, res, next) => {
     try {
-        // If images were uploaded, build an array of paths
+        // Handle uploaded images
         let uploadedPaths = [];
         if (req.files && req.files.length > 0) {
             uploadedPaths = req.files.map(file => `/uploads/productImages/${file.filename}`);
         }
 
-        // req.body is text fields from the form; Add images array
-        const newProductData = {
+        const productData = {
             ...req.body,
             images: uploadedPaths
         };
 
-        const product = await Product.create(newProductData);
+        const product = await Product.create(productData);
 
         res.status(201).json({
             success: true,
-            message: messages.success.productAdded || 'Product created successfully',
+            message: 'Product created successfully',
             data: product
         });
     } catch (error) {
@@ -92,23 +139,16 @@ exports.createProduct = async (req, res, next) => {
     }
 };
 
-
-// @desc    Update an existing product (Admin only)
+// @desc    Update product
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 exports.updateProduct = async (req, res, next) => {
     try {
         let updateFields = { ...req.body };
 
-        // If new images were uploaded, append them to existing or replace them
+        // Handle new image uploads
         if (req.files && req.files.length > 0) {
             const newPaths = req.files.map(file => `/uploads/productImages/${file.filename}`);
-
-            // Decide if you want to MERGE or REPLACE existing images
-            // 1) MERGE example:
-            // updateFields.images = [...(req.body.images || []), ...newPaths];
-
-            // 2) REPLACE example (completely new set of images):
             updateFields.images = newPaths;
         }
 
@@ -121,13 +161,13 @@ exports.updateProduct = async (req, res, next) => {
         if (!product) {
             return res.status(404).json({
                 success: false,
-                message: messages.errors.productNotFound || "Product not found"
+                message: 'Product not found'
             });
         }
 
         res.status(200).json({
             success: true,
-            message: messages.success.productUpdated || "Product updated successfully",
+            message: 'Product updated successfully',
             data: product
         });
     } catch (error) {
@@ -135,17 +175,87 @@ exports.updateProduct = async (req, res, next) => {
     }
 };
 
+// @desc    Update product stock
+// @route   PATCH /api/products/:id/stock
+// @access  Private/Admin
+exports.updateStock = async (req, res, next) => {
+    try {
+        const { stock } = req.body;
 
-// @desc    Delete a product (Admin only)
+        if (stock < 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Stock cannot be negative'
+            });
+        }
+
+        const product = await Product.findByIdAndUpdate(
+            req.params.id,
+            { stock: stock },
+            { new: true, runValidators: true }
+        );
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Stock updated successfully',
+            data: product
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get low stock products
+// @route   GET /api/products/admin/low-stock
+// @access  Private/Admin
+exports.getLowStockProducts = async (req, res, next) => {
+    try {
+        const products = await Product.find({
+            status: 'active',
+            $expr: { $lte: [{ $subtract: ['$stock', '$reservedStock'] }, 5] }
+        })
+            .select('name brand stock reservedStock price category stockUnit')
+            .sort({ stock: 1 });
+
+        res.status(200).json({
+            success: true,
+            count: products.length,
+            data: products
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Delete product (soft delete)
 // @route   DELETE /api/products/:id
 // @access  Private/Admin
 exports.deleteProduct = async (req, res, next) => {
     try {
-        const product = await Product.findByIdAndDelete(req.params.id);
+        const product = await Product.findByIdAndUpdate(
+            req.params.id,
+            { status: 'discontinued' },
+            { new: true }
+        );
+
         if (!product) {
-            return res.status(404).json({ success: false, message: messages.errors.productNotFound });
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
         }
-        res.status(200).json({ success: true, message: messages.success.productDeleted });
+
+        res.status(200).json({
+            success: true,
+            message: 'Product deleted successfully'
+        });
     } catch (error) {
         next(error);
     }
