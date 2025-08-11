@@ -14,6 +14,8 @@ const cartRoutes = require('./routes/cart');
 const adminOrderRoutes = require('./routes/adminOrders');
 const userRoutes = require('./routes/user');
 
+const { startCartCleanupJob } = require('./jobs/cartCleanup');
+
 const app = express();
 
 // Parse JSON
@@ -58,6 +60,7 @@ const server = http.createServer(app);
 const startServer = async () => {
     try {
         await connectToDatabase();
+        startCartCleanupJob();
         server.listen(PORT, () => {
             console.log(`Server is running on PORT ${PORT}`);
         });
