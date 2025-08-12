@@ -1,496 +1,770 @@
 const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
-const messages = require('../config/messages');
+const User = require('../models/User');
 
-// Define available promo codes with their rules
-const PROMO_CODES = {
-    'FIRSTORDER': {
-        type: 'percentage',
-        value: 10, // 10% discount
-        description: 'First Order Discount',
-        minAmount: 0,
-        maxDiscount: null,
-        oneTimeUse: true,
-        userLimit: 1, // One per user
-        totalLimit: null, // Unlimited total uses
-        validFrom: null,
-        validUntil: null,
-        applicableCategories: null // All categories
-    },
-    'SAVE20': {
-        type: 'percentage',
-        value: 20, // 20% discount
-        description: 'Save 20% on your order',
-        minAmount: 100, // Minimum Rs. 1000 order
-        maxDiscount: 500, // Maximum Rs. 500 discount
-        oneTimeUse: false,
-        userLimit: 3, // 3 times per user
-        totalLimit: 1000, // Total 1000 uses across all users
-        validFrom: null,
-        validUntil: null,
-        applicableCategories: null
-    },
-    'FLAT100': {
-        type: 'fixed',
-        value: 100, // Rs. 100 flat discount
-        description: 'Flat Rs. 100 off',
-        minAmount: 500, // Minimum Rs. 500 order
-        maxDiscount: null,
-        oneTimeUse: false,
-        userLimit: 5, // 5 times per user
-        totalLimit: null,
-        validFrom: null,
-        validUntil: null,
-        applicableCategories: ['Medicine', 'Health Care']
-    },
-    'WELCOME50': {
-        type: 'fixed',
-        value: 50, // Rs. 50 flat discount
-        description: 'Welcome discount for new users',
-        minAmount: 200, // Minimum Rs. 200 order
-        maxDiscount: null,
-        oneTimeUse: true,
-        userLimit: 1,
-        totalLimit: 500, // Limited to 500 total uses
-        validFrom: null,
-        validUntil: null,
-        applicableCategories: null
-    },
-    'STUDENT15': {
-        type: 'percentage',
-        value: 15, // 15% discount
-        description: 'Student discount',
-        minAmount: 300,
-        maxDiscount: 200, // Maximum Rs. 200 discount
-        oneTimeUse: false,
-        userLimit: null, // Unlimited per user
-        totalLimit: null,
-        validFrom: null,
-        validUntil: null,
-        applicableCategories: null
-    },
-    'BULK25': {
-        type: 'percentage',
-        value: 25, // 25% discount
-        description: 'Bulk order discount',
-        minAmount: 2000, // Minimum Rs. 2000 order
-        maxDiscount: 1000, // Maximum Rs. 1000 discount
-        oneTimeUse: false,
-        userLimit: 2, // 2 times per user
-        totalLimit: null,
-        validFrom: null,
-        validUntil: null,
-        applicableCategories: null
+// Helper function to calculate delivery fee based on location
+const calculateDeliveryFee = (city, area) => {
+    // Simple delivery fee calculation for Nepal
+    const biratnagar = ['biratnagar', 'itahari'];
+
+    if (biratnagar.includes(city.toLowerCase())) {
+        return 50;
     }
+    return 100; // Rs. 100 for outside valley
 };
 
-// Function to validate and calculate promo code discount
-const validatePromoCode = async (promoCode, userId, totalPrice, orderItems) => {
-    const promo = PROMO_CODES[promoCode];
+// Helper function to validate prescription requirements
+const validatePrescriptionRequirements = (items, prescriptions) => {
+    const prescriptionItems = items.filter(item => item.prescriptionRequired);
 
-    if (!promo) {
-        throw new Error('Invalid promo code');
+    if (prescriptionItems.length > 0 && prescriptions.length === 0) {
+        return {
+            valid: false,
+            message: 'Prescription is required for prescription medicines in your cart'
+        };
     }
 
-    // Check if promo code is currently valid (date range)
-    const now = new Date();
-    if (promo.validFrom && now < new Date(promo.validFrom)) {
-        throw new Error('Promo code is not yet active');
-    }
-    if (promo.validUntil && now > new Date(promo.validUntil)) {
-        throw new Error('Promo code has expired');
-    }
-
-    // Check minimum order amount
-    if (totalPrice < promo.minAmount) {
-        throw new Error(`Minimum order amount of Rs. ${promo.minAmount} required for this promo code`);
-    }
-
-    // Check category restrictions
-    if (promo.applicableCategories) {
-        const orderCategories = orderItems.map(item => item.productCategory);
-        const hasApplicableCategory = orderCategories.some(category =>
-            promo.applicableCategories.includes(category)
-        );
-        if (!hasApplicableCategory) {
-            throw new Error(`This promo code is only applicable for ${promo.applicableCategories.join(', ')} categories`);
-        }
-    }
-
-    // Check user-specific limits
-    if (promo.userLimit) {
-        const userOrdersWithPromo = await Order.countDocuments({
-            user: userId,
-            promoCodeUsed: promoCode
-        });
-
-        if (userOrdersWithPromo >= promo.userLimit) {
-            throw new Error(`You have already used this promo code ${promo.userLimit} time(s)`);
-        }
-    }
-
-    // Check if it's a one-time use promo and user has used it before
-    if (promo.oneTimeUse) {
-        const hasUsedBefore = await Order.findOne({
-            user: userId,
-            promoCodeUsed: promoCode
-        });
-
-        if (hasUsedBefore) {
-            throw new Error('This promo code can only be used once per user');
-        }
-    }
-
-    // Check total usage limit across all users
-    if (promo.totalLimit) {
-        const totalUsage = await Order.countDocuments({ promoCodeUsed: promoCode });
-        if (totalUsage >= promo.totalLimit) {
-            throw new Error('This promo code has reached its usage limit');
-        }
-    }
-
-    // Calculate discount
-    let discount = 0;
-    if (promo.type === 'percentage') {
-        discount = totalPrice * (promo.value / 100);
-        // Apply maximum discount limit if specified
-        if (promo.maxDiscount && discount > promo.maxDiscount) {
-            discount = promo.maxDiscount;
-        }
-    } else if (promo.type === 'fixed') {
-        discount = promo.value;
-        // Don't let fixed discount exceed total price
-        if (discount > totalPrice) {
-            discount = totalPrice;
-        }
-    }
-
-    return {
-        discount,
-        description: promo.description,
-        type: promo.type,
-        value: promo.value
-    };
+    return { valid: true };
 };
 
+// @desc    Create order from cart
+// @route   POST /api/orders
+// @access  Public (supports guest orders)
 exports.createOrder = async (req, res, next) => {
     try {
-        const { promoCode, shippingAddress, contactInfo } = req.body;
-        const userId = req.user._id;
+        const { deliveryAddress, paymentMethod = 'cod', guestDetails, customerNotes, prescriptions = [] } = req.body;
 
-        // Validate shipping details
-        if (!shippingAddress || !contactInfo) {
+        // Add these debug logs:
+        console.log('Full request body:', JSON.stringify(req.body, null, 2));
+        console.log('Delivery address:', deliveryAddress);
+        console.log('Street check:', deliveryAddress?.street);
+        console.log('Area check:', deliveryAddress?.area);
+        console.log('City check:', deliveryAddress?.city);
+
+        const userId = req.user?.id || null;
+        const guestId = req.headers['x-guest-id'] || req.body.guestId || null;
+
+        // Validate required fields
+        if (!deliveryAddress || !deliveryAddress.street || !deliveryAddress.area || !deliveryAddress.city) {
             return res.status(400).json({
                 success: false,
-                message: 'Shipping address and contact information are required'
+                message: 'Complete delivery address is required'
             });
         }
 
-        // Retrieve user's cart and ensure it's not empty
-        const cart = await Cart.findOne({ user: userId }).populate('items.product');
-        if (!cart || cart.items.length === 0) {
-            return res.status(400).json({ success: false, message: messages.errors.cartEmpty });
+        // For guest orders, validate guest details
+        if (!userId && (!guestDetails || !guestDetails.name || !guestDetails.email || !guestDetails.phone)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Guest details (name, email, phone) are required for guest orders'
+            });
         }
 
-        let orderItems = [];
-        let totalPrice = 0;
+        // Get cart
+        const cart = await Cart.findActiveCart(userId, guestId);
+        if (!cart || cart.items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cart is empty or not found'
+            });
+        }
 
-        // Validate cart items and compute total price, embedding product details
-        for (const item of cart.items) {
-            const product = item.product;
-            if (item.quantity > product.stock) {
+        // Check for expired cart
+        if (cart.isExpired) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cart has expired. Please add items again.'
+            });
+        }
+
+        // Validate stock availability and prepare order items
+        const orderItems = [];
+        let hasPrescriptionItems = false;
+
+        for (const cartItem of cart.items) {
+            const product = await Product.findById(cartItem.product);
+
+            if (!product || product.status !== 'active') {
                 return res.status(400).json({
                     success: false,
-                    message: `Cannot order more than available stock for ${product.name}`
+                    message: `Product ${product?.name || 'Unknown'} is no longer available`
                 });
             }
+
+            // Calculate stock needed
+            let stockNeeded;
+            if (cartItem.purchaseType === 'unit' && ['tablet', 'capsule'].includes(product.productType)) {
+                stockNeeded = Math.ceil(cartItem.quantity / product.unitsPerStrip);
+            } else {
+                stockNeeded = cartItem.quantity;
+            }
+
+            // Check stock availability
+            if (product.availableStock < stockNeeded) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Insufficient stock for ${product.name}. Available: ${product.availableStock} ${product.stockUnit}`
+                });
+            }
+
+            // Check if prescription is required
+            const prescriptionRequired = product.medicineType === 'Prescription';
+            if (prescriptionRequired) {
+                hasPrescriptionItems = true;
+            }
+
+            // Create order item with product snapshot
             orderItems.push({
                 product: product._id,
-                productName: product.name,
-                productDescription: product.description,
-                productBrand: product.brand,
-                productCategory: product.category,
-                quantity: item.quantity,
-                price: product.price
+                productSnapshot: {
+                    name: product.name,
+                    brand: product.brand,
+                    category: product.category,
+                    medicineType: product.medicineType,
+                    productType: product.productType,
+                    price: product.price,
+                    image: product.images[0] || ''
+                },
+                quantity: cartItem.quantity,
+                purchaseType: cartItem.purchaseType,
+                pricePerItem: cartItem.pricePerItem,
+                totalPrice: cartItem.totalPrice,
+                prescriptionRequired
             });
-            totalPrice += product.price * item.quantity;
         }
 
-        // Auto-Increment Order Number
-        const lastOrder = await Order.findOne().sort({ createdAt: -1 });
-        let orderNumber = "#FIX001";
-        if (lastOrder && lastOrder.orderNumber) {
-            const lastNumber = parseInt(lastOrder.orderNumber.replace("#FIX", ""));
-            orderNumber = `#FIX${(lastNumber + 1).toString().padStart(3, "0")}`;
+        // Validate prescription requirements
+        const prescriptionValidation = validatePrescriptionRequirements(orderItems, prescriptions);
+        if (!prescriptionValidation.valid) {
+            return res.status(400).json({
+                success: false,
+                message: prescriptionValidation.message
+            });
         }
 
-        // Handle promo code validation and discount calculation
-        let discount = 0;
-        let finalPrice = totalPrice;
-        let promoDetails = null;
+        // Calculate pricing
+        const subtotal = orderItems.reduce((total, item) => total + item.totalPrice, 0);
+        const deliveryFee = calculateDeliveryFee(deliveryAddress.city, deliveryAddress.area);
+        const total = subtotal + deliveryFee;
 
-        if (promoCode) {
-            try {
-                promoDetails = await validatePromoCode(promoCode, userId, totalPrice, orderItems);
-                discount = promoDetails.discount;
-                finalPrice = totalPrice - discount;
-            } catch (error) {
-                return res.status(400).json({
-                    success: false,
-                    message: error.message
-                });
-            }
-        }
-
-        // Create order data object
+        // Create order
         const orderData = {
-            user: userId,
-            orderNumber,
-            orderItems,
-            totalPrice,
-            discount,
-            finalPrice,
-            shippingAddress,
-            contactInfo,
-            paymentMethod: 'Cash on Delivery',
-            paymentStatus: 'pending',
-            amountPaid: 0
+            customer: {
+                user: userId,
+                guestDetails: userId ? undefined : guestDetails,
+                isGuest: !userId
+            },
+            items: orderItems,
+            prescriptions: prescriptions.map(p => ({
+                imageUrl: p.imageUrl,
+                fileName: p.fileName,
+                doctorName: p.doctorName,
+                hospitalName: p.hospitalName || '',
+                prescriptionDate: new Date(p.prescriptionDate)
+            })),
+            hasPrescriptionItems,
+            prescriptionStatus: hasPrescriptionItems ? 'pending_verification' : 'not_required',
+            deliveryAddress: {
+                name: deliveryAddress.name || (userId ? req.user.name : guestDetails.name),
+                phone: deliveryAddress.phone || (userId ? req.user.phone : guestDetails.phone),
+                street: deliveryAddress.street,
+                area: deliveryAddress.area,
+                city: deliveryAddress.city,
+                landmark: deliveryAddress.landmark || '',
+                deliveryInstructions: deliveryAddress.deliveryInstructions || ''
+            },
+            pricing: {
+                subtotal,
+                deliveryFee,
+                total
+            },
+            payment: {
+                method: paymentMethod
+            },
+            notes: {
+                customerNotes: customerNotes || ''
+            }
         };
 
-        // Add promo code fields if promo code was used
-        if (promoCode && promoDetails) {
-            orderData.promoCodeUsed = promoCode;
-            orderData.promoDetails = {
-                code: promoCode,
-                description: promoDetails.description,
-                type: promoDetails.type,
-                value: promoDetails.value,
-                discountApplied: discount
-            };
+        const order = new Order(orderData);
+        await order.save();
+
+        // Convert cart stock reservations to order stock reservations
+        // The stock is already reserved in cart, so we just need to confirm it's still reserved
+        for (const cartItem of cart.items) {
+            const product = await Product.findById(cartItem.product);
+            // Stock is already reserved from cart, no additional reservation needed
         }
 
-        // Create the order with generated order number
-        const order = await Order.create(orderData);
+        // Clear the cart after successful order creation
+        await cart.clearCart();
 
-        // Deduct ordered quantities from product stock
-        for (const item of cart.items) {
-            await Product.findByIdAndUpdate(item.product._id, { $inc: { stock: -item.quantity } });
-        }
-
-        // Clear the cart after order placement
-        cart.items = [];
-        await cart.save();
+        // Populate the order for response
+        const populatedOrder = await Order.findById(order._id)
+            .populate('items.product', 'name brand images')
+            .populate('customer.user', 'name email phone');
 
         res.status(201).json({
             success: true,
-            message: messages.success.orderPlaced,
-            data: order
+            message: 'Order created successfully',
+            data: populatedOrder
         });
+
     } catch (error) {
+        console.error('Create order error:', error);
         next(error);
     }
 };
 
-// Get available promo codes for a user
-exports.getAvailablePromoCodes = async (req, res, next) => {
-    try {
-        const userId = req.user._id;
-        const availableCodes = [];
-
-        for (const [code, promo] of Object.entries(PROMO_CODES)) {
-            try {
-                // Check if user can use this promo code (basic validation)
-                const now = new Date();
-
-                // Skip if not yet active or expired
-                if (promo.validFrom && now < new Date(promo.validFrom)) continue;
-                if (promo.validUntil && now > new Date(promo.validUntil)) continue;
-
-                // Check user limits
-                if (promo.userLimit) {
-                    const userUsageCount = await Order.countDocuments({
-                        user: userId,
-                        promoCodeUsed: code
-                    });
-                    if (userUsageCount >= promo.userLimit) continue;
-                }
-
-                // Check one-time use
-                if (promo.oneTimeUse) {
-                    const hasUsed = await Order.findOne({
-                        user: userId,
-                        promoCodeUsed: code
-                    });
-                    if (hasUsed) continue;
-                }
-
-                // Check total limit
-                if (promo.totalLimit) {
-                    const totalUsage = await Order.countDocuments({ promoCodeUsed: code });
-                    if (totalUsage >= promo.totalLimit) continue;
-                }
-
-                availableCodes.push({
-                    code,
-                    description: promo.description,
-                    type: promo.type,
-                    value: promo.value,
-                    minAmount: promo.minAmount,
-                    maxDiscount: promo.maxDiscount,
-                    applicableCategories: promo.applicableCategories
-                });
-            } catch (error) {
-                // Skip this promo code if there's an error
-                continue;
-            }
-        }
-
-        res.status(200).json({
-            success: true,
-            data: availableCodes
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// Validate a promo code before order placement
-exports.validatePromoCodeEndpoint = async (req, res, next) => {
-    try {
-        const { promoCode, cartTotal } = req.body;
-        const userId = req.user._id;
-
-        if (!promoCode) {
-            return res.status(400).json({
-                success: false,
-                message: 'Promo code is required'
-            });
-        }
-
-        // Get user's cart to check categories
-        const cart = await Cart.findOne({ user: userId }).populate('items.product');
-        if (!cart || cart.items.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Cart is empty'
-            });
-        }
-
-        const orderItems = cart.items.map(item => ({
-            productCategory: item.product.category
-        }));
-
-        const totalPrice = cartTotal || cart.items.reduce((total, item) =>
-            total + (item.product.price * item.quantity), 0
-        );
-
-        const promoDetails = await validatePromoCode(promoCode, userId, totalPrice, orderItems);
-
-        res.status(200).json({
-            success: true,
-            message: 'Promo code is valid',
-            data: {
-                promoCode,
-                discount: promoDetails.discount,
-                description: promoDetails.description,
-                finalAmount: totalPrice - promoDetails.discount
-            }
-        });
-    } catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error.message
-        });
-    }
-};
-
-exports.getOrders = async (req, res, next) => {
-    try {
-        const orders = await Order.find()
-            .populate("user", "name email phone")
-            .populate("orderItems.product", "name description brand category price stock")
-            .sort({ createdAt: -1 }); // Most recent orders first
-
-        res.status(200).json({ success: true, count: orders.length, data: orders });
-    } catch (error) {
-        next(error);
-    }
-};
-
-exports.getOrder = async (req, res, next) => {
-    try {
-        const order = await Order.findById(req.params.id)
-            .populate("user", "name email phone address")
-            .populate("orderItems.product", "name description brand category price stock images");
-
-        if (!order) {
-            return res.status(404).json({ success: false, message: 'Order not found' });
-        }
-
-        res.status(200).json({ success: true, data: order });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// Update order status
-exports.updateOrderStatus = async (req, res, next) => {
-    try {
-        const { status, deliveryPersonName, deliveryPersonContact, estimatedArrivalTime } = req.body;
-        const orderId = req.params.id;
-
-        const validStatuses = ['pending', 'confirmed', 'processing', 'shipped', 'out for delivery', 'delivered', 'cancelled'];
-
-        if (!validStatuses.includes(status)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid order status'
-            });
-        }
-
-        const updateData = { status };
-
-        // Add delivery details if provided
-        if (deliveryPersonName) updateData.deliveryPersonName = deliveryPersonName;
-        if (deliveryPersonContact) updateData.deliveryPersonContact = deliveryPersonContact;
-        if (estimatedArrivalTime) updateData.estimatedArrivalTime = estimatedArrivalTime;
-
-        const order = await Order.findByIdAndUpdate(
-            orderId,
-            updateData,
-            { new: true, runValidators: true }
-        )
-            .populate("user", "name email phone")
-            .populate("orderItems.product", "name description brand category price");
-
-        if (!order) {
-            return res.status(404).json({ success: false, message: 'Order not found' });
-        }
-
-        res.status(200).json({
-            success: true,
-            message: 'Order updated successfully',
-            data: order
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-// Get user's own orders (for customer portal)
+// @desc    Get user orders
+// @route   GET /api/orders
+// @access  Private
 exports.getUserOrders = async (req, res, next) => {
     try {
-        const userId = req.user._id;
+        const userId = req.user.id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
 
-        const orders = await Order.find({ user: userId })
-            .populate("orderItems.product", "name description brand category price images")
-            .sort({ createdAt: -1 });
+        const orders = await Order.find({ 'customer.user': userId })
+            .populate('items.product', 'name brand images')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Order.countDocuments({ 'customer.user': userId });
 
         res.status(200).json({
             success: true,
-            count: orders.length,
+            data: orders,
+            pagination: {
+                current: page,
+                pages: Math.ceil(total / limit),
+                total
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get single order
+// @route   GET /api/orders/:id
+// @access  Private
+exports.getOrder = async (req, res, next) => {
+    try {
+        console.log('=== GET ORDER DEBUG ===');
+        console.log('Requested Order ID:', req.params.id);
+        console.log('Current User ID:', req.user.id);
+        console.log('Current User Role:', req.user.role);
+
+        const order = await Order.findById(req.params.id)
+            .populate('items.product')
+            .populate('customer.user', 'name email phone')
+            .populate('delivery.assignedTo', 'name phone')
+            .populate('statusHistory.changedBy', 'name');
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // FIXED: Use _id property when populated
+        const orderUserId = order.customer.user?._id?.toString() || order.customer.user?.toString();
+
+        console.log('Order Customer User ID:', orderUserId);
+        console.log('Current User ID:', req.user.id);
+        console.log('IDs Match:', orderUserId === req.user.id);
+
+        // Check if user has access to this order
+        if (req.user.role !== 'admin' &&
+            req.user.role !== 'pharmacist' &&
+            orderUserId !== req.user.id) {
+
+            console.log('Access denied - user not authorized');
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to access this order'
+            });
+        }
+
+        console.log('Access granted');
+        res.status(200).json({
+            success: true,
+            data: order
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Update order status
+// @route   PUT /api/orders/:id/status
+// @access  Private (Admin/Pharmacist only)
+exports.updateOrderStatus = async (req, res, next) => {
+    try {
+        const { status, notes } = req.body;
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Update status with audit trail
+        await order.updateStatus(status, req.user.id, notes);
+
+        // If confirming order, deduct actual stock
+        if (status === 'confirmed') {
+            await order.confirmSale();
+        }
+
+        const updatedOrder = await Order.findById(order._id)
+            .populate('items.product')
+            .populate('customer.user', 'name email phone')
+            .populate('statusHistory.changedBy', 'name');
+
+        res.status(200).json({
+            success: true,
+            message: 'Order status updated successfully',
+            data: updatedOrder
+        });
+    } catch (error) {
+        console.error('Update order status error:', error);
+        next(error);
+    }
+};
+
+// @desc    Cancel order
+// @route   PUT /api/orders/:id/cancel
+// @access  Private
+exports.cancelOrder = async (req, res, next) => {
+    try {
+        const { reason } = req.body;
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Check if user can cancel this order
+        if (req.user.role !== 'admin' &&
+            req.user.role !== 'pharmacist' &&
+            order.customer.user?.toString() !== req.user.id) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to cancel this order'
+            });
+        }
+
+        // Check if order can be cancelled
+        if (['delivered', 'cancelled', 'returned'].includes(order.status)) {
+            return res.status(400).json({
+                success: false,
+                message: 'This order cannot be cancelled'
+            });
+        }
+
+        // Update cancellation details
+        order.cancellation = {
+            reason: reason || 'Cancelled by user',
+            cancelledBy: req.user.id,
+            cancelledAt: new Date()
+        };
+
+        // Update status to cancelled
+        await order.updateStatus('cancelled', req.user.id, `Order cancelled: ${reason}`);
+
+        res.status(200).json({
+            success: true,
+            message: 'Order cancelled successfully',
+            data: order
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Verify prescription
+// @route   PUT /api/orders/:id/verify-prescription
+// @access  Private (Pharmacist/Admin only)
+exports.verifyPrescription = async (req, res, next) => {
+    try {
+        const { prescriptionId, verified, notes } = req.body;
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Find the prescription
+        const prescription = order.prescriptions.id(prescriptionId);
+        if (!prescription) {
+            return res.status(404).json({
+                success: false,
+                message: 'Prescription not found'
+            });
+        }
+
+        // Update prescription verification
+        prescription.verified = verified;
+        prescription.verifiedBy = req.user.id;
+        prescription.verifiedAt = new Date();
+        prescription.verificationNotes = notes;
+
+        if (!verified) {
+            prescription.rejectionReason = notes;
+        }
+
+        // Check if all prescriptions are verified
+        const allPrescriptionsVerified = order.prescriptions.every(p => p.verified);
+
+        if (verified && allPrescriptionsVerified) {
+            order.prescriptionStatus = 'verified';
+            // Auto-update order status if all prescriptions are verified
+            await order.updateStatus('prescription_verified', req.user.id, 'All prescriptions verified');
+        } else if (!verified) {
+            order.prescriptionStatus = 'rejected';
+            await order.updateStatus('cancelled', req.user.id, 'Prescription rejected');
+        }
+
+        await order.save();
+
+        const updatedOrder = await Order.findById(order._id)
+            .populate('items.product')
+            .populate('prescriptions.verifiedBy', 'name');
+
+        res.status(200).json({
+            success: true,
+            message: verified ? 'Prescription verified successfully' : 'Prescription rejected',
+            data: updatedOrder
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get all orders (Admin/Pharmacist)
+// @route   GET /api/orders/all
+// @access  Private (Admin/Pharmacist only)
+exports.getAllOrders = async (req, res, next) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+        const status = req.query.status;
+        const prescriptionStatus = req.query.prescriptionStatus;
+
+        // Build query
+        const query = {};
+        if (status) query.status = status;
+        if (prescriptionStatus) query.prescriptionStatus = prescriptionStatus;
+
+        const orders = await Order.find(query)
+            .populate('items.product', 'name brand')
+            .populate('customer.user', 'name email phone')
+            .populate('delivery.assignedTo', 'name phone')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Order.countDocuments(query);
+
+        res.status(200).json({
+            success: true,
+            data: orders,
+            pagination: {
+                current: page,
+                pages: Math.ceil(total / limit),
+                total
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get orders requiring prescription verification
+// @route   GET /api/orders/pending-prescriptions
+// @access  Private (Pharmacist/Admin only)
+exports.getPendingPrescriptions = async (req, res, next) => {
+    try {
+        const orders = await Order.findPendingPrescriptionVerification();
+
+        res.status(200).json({
+            success: true,
             data: orders
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Assign delivery person
+// @route   PUT /api/orders/:id/assign-delivery
+// @access  Private (Admin only)
+exports.assignDeliveryPerson = async (req, res, next) => {
+    try {
+        const { deliveryPersonId, estimatedDeliveryTime } = req.body;
+
+        const order = await Order.findById(req.params.id);
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Verify delivery person exists and has correct role
+        const deliveryPerson = await User.findById(deliveryPersonId);
+        if (!deliveryPerson || deliveryPerson.role !== 'delivery') {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid delivery person'
+            });
+        }
+
+        // Update delivery assignment
+        order.delivery.assignedTo = deliveryPersonId;
+        if (estimatedDeliveryTime) {
+            order.delivery.estimatedDeliveryTime = new Date(estimatedDeliveryTime);
+        }
+
+        await order.save();
+
+        const updatedOrder = await Order.findById(order._id)
+            .populate('delivery.assignedTo', 'name phone email');
+
+        res.status(200).json({
+            success: true,
+            message: 'Delivery person assigned successfully',
+            data: updatedOrder
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get revenue analytics
+// @route   GET /api/orders/analytics/revenue
+// @access  Private (Admin only)
+exports.getRevenueAnalytics = async (req, res, next) => {
+    try {
+        const { startDate, endDate, period = 'daily' } = req.query;
+
+        const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const end = endDate ? new Date(endDate) : new Date();
+
+        // Get overall revenue stats
+        const revenueStats = await Order.getRevenueStats(start, end);
+
+        // Get daily/weekly/monthly breakdown
+        let groupBy;
+        switch (period) {
+            case 'weekly':
+                groupBy = {
+                    year: { $year: '$createdAt' },
+                    week: { $week: '$createdAt' }
+                };
+                break;
+            case 'monthly':
+                groupBy = {
+                    year: { $year: '$createdAt' },
+                    month: { $month: '$createdAt' }
+                };
+                break;
+            default: // daily
+                groupBy = {
+                    year: { $year: '$createdAt' },
+                    month: { $month: '$createdAt' },
+                    day: { $dayOfMonth: '$createdAt' }
+                };
+        }
+
+        const periodBreakdown = await Order.aggregate([
+            {
+                $match: {
+                    status: 'delivered',
+                    'revenue.recorded': true,
+                    createdAt: { $gte: start, $lte: end }
+                }
+            },
+            {
+                $group: {
+                    _id: groupBy,
+                    revenue: { $sum: '$revenue.grossRevenue' },
+                    profit: { $sum: '$revenue.profit' },
+                    orders: { $sum: 1 }
+                }
+            },
+            { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.week': 1 } }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                overall: revenueStats[0] || {
+                    totalRevenue: 0,
+                    totalProfit: 0,
+                    totalOrders: 0,
+                    averageOrderValue: 0
+                },
+                breakdown: periodBreakdown
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Get order analytics
+// @route   GET /api/orders/analytics/orders
+// @access  Private (Admin only)
+exports.getOrderAnalytics = async (req, res, next) => {
+    try {
+        // Order status distribution
+        const statusDistribution = await Order.aggregate([
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Prescription vs OTC orders
+        const prescriptionDistribution = await Order.aggregate([
+            {
+                $group: {
+                    _id: '$hasPrescriptionItems',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Payment method distribution
+        const paymentMethodDistribution = await Order.aggregate([
+            {
+                $group: {
+                    _id: '$payment.method',
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Top selling products
+        const topProducts = await Order.aggregate([
+            { $unwind: '$items' },
+            {
+                $group: {
+                    _id: '$items.product',
+                    totalQuantity: { $sum: '$items.quantity' },
+                    totalRevenue: { $sum: '$items.totalPrice' },
+                    orderCount: { $sum: 1 }
+                }
+            },
+            { $sort: { totalQuantity: -1 } },
+            { $limit: 10 },
+            {
+                $lookup: {
+                    from: 'products',
+                    localField: '_id',
+                    foreignField: '_id',
+                    as: 'product'
+                }
+            },
+            { $unwind: '$product' },
+            {
+                $project: {
+                    productName: '$product.name',
+                    brand: '$product.brand',
+                    category: '$product.category',
+                    totalQuantity: 1,
+                    totalRevenue: 1,
+                    orderCount: 1
+                }
+            }
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                statusDistribution,
+                prescriptionDistribution,
+                paymentMethodDistribution,
+                topProducts
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Track order (public endpoint for order tracking)
+// @route   GET /api/orders/track/:orderNumber
+// @access  Public
+exports.trackOrder = async (req, res, next) => {
+    try {
+        const { orderNumber } = req.params;
+        const { phone } = req.query; // For verification
+
+        const order = await Order.findOne({ orderNumber })
+            .populate('items.product', 'name brand')
+            .populate('delivery.assignedTo', 'name phone')
+            .select('-prescriptions -notes.internalNotes -revenue');
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        // Verify phone number for guest orders
+        if (order.customer.isGuest) {
+            if (!phone || order.customer.guestDetails.phone !== phone) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Phone number verification required'
+                });
+            }
+        }
+
+        // Return tracking information
+        const trackingInfo = {
+            orderNumber: order.orderNumber,
+            status: order.status,
+            createdAt: order.createdAt,
+            estimatedDeliveryTime: order.delivery.estimatedDeliveryTime,
+            actualDeliveryTime: order.delivery.actualDeliveryTime,
+            items: order.items.map(item => ({
+                name: item.productSnapshot.name,
+                brand: item.productSnapshot.brand,
+                quantity: item.quantity,
+                purchaseType: item.purchaseType
+            })),
+            deliveryAddress: order.deliveryAddress,
+            statusHistory: order.statusHistory.map(h => ({
+                status: h.status,
+                changedAt: h.changedAt,
+                notes: h.notes
+            }))
+        };
+
+        res.status(200).json({
+            success: true,
+            data: trackingInfo
         });
     } catch (error) {
         next(error);
