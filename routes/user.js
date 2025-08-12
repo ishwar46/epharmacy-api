@@ -1,14 +1,36 @@
-// routes/user.js
 const express = require('express');
 const router = express.Router();
 
 const { protect } = require('../middleware/auth');
-const { updateUserProfile } = require('../controllers/userController');
+const {
+    getUserProfile,
+    updateUserProfile,
+    deleteUserAccount,
+    getUserOrders,
+    getUserAddresses,
+    updateUserPreferences
+} = require('../controllers/userController');
 
-// Multer config for user profile
+// Multer config for user profile pictures
 const uploadUserProfile = require("../utils/uploadUserProfile");
 
-// Protect the route (only logged-in users can update themselves)
-router.put('/profile', protect, uploadUserProfile.single('profilePicture'), updateUserProfile);
+// All user routes are protected (require authentication)
+router.use(protect);
+
+// Profile routes
+router.get('/profile', getUserProfile);
+router.put('/profile', uploadUserProfile.single('profilePicture'), updateUserProfile);
+
+// Account management
+router.delete('/account', deleteUserAccount);
+
+// Orders (will be fully implemented when Order model is ready)
+router.get('/orders', getUserOrders);
+
+// Addresses
+router.get('/addresses', getUserAddresses);
+
+// Preferences
+router.put('/preferences', updateUserPreferences);
 
 module.exports = router;
