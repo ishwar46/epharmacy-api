@@ -51,17 +51,51 @@ exports.updateUserProfile = async (req, res, next) => {
             });
         }
 
+        // Input validation
+        if (name && name.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name must be at least 2 characters'
+            });
+        }
+
+        if (phone && !/^\+?[\d\s\-\(\)]+$/.test(phone)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid phone number format'
+            });
+        }
+
+        if (address && address.trim().length > 500) {
+            return res.status(400).json({
+                success: false,
+                message: 'Address must be less than 500 characters'
+            });
+        }
+
+        // Validate location coordinates
+        if (location && location.lat && location.lng) {
+            const lat = parseFloat(location.lat);
+            const lng = parseFloat(location.lng);
+
+            if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Invalid coordinates. Latitude must be -90 to 90, longitude must be -180 to 180'
+                });
+            }
+        }
+
         // Update fields if provided
         if (name) user.name = name.trim();
         if (phone !== undefined) user.phone = phone;
-        if (address !== undefined) user.address = address;
+        if (address !== undefined) user.address = address.trim();
 
         // Update location if provided
         if (location && location.lat && location.lng) {
-            user.location = {
-                lat: parseFloat(location.lat),
-                lng: parseFloat(location.lng)
-            };
+            const lat = parseFloat(location.lat);
+            const lng = parseFloat(location.lng);
+            user.location = { lat, lng };
         }
 
         // If a new profile picture was uploaded (req.file)

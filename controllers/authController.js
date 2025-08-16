@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const emailService = require('../utils/emailService');
+const mongoose = require('mongoose');
 
 // Helper function to generate JWT token
 const generateToken = (id) => {
@@ -64,8 +65,20 @@ exports.register = async (req, res, next) => {
             });
         }
 
+        // Validate email format early
+        const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a valid email'
+            });
+        }
+
+        const trimmedEmail = email.toLowerCase().trim();
+        const trimmedName = name.trim();
+
         // Check if user already exists
-        const existingUser = await User.findByEmail(email);
+        const existingUser = await User.findByEmail(trimmedEmail);
         if (existingUser) {
             return res.status(400).json({
                 success: false,
@@ -73,26 +86,23 @@ exports.register = async (req, res, next) => {
             });
         }
 
-        // Create user
+        // Send welcome email first (fail fast if email service is down)
+        await emailService.sendWelcomeEmail(trimmedEmail, trimmedName);
+
+        // Create user with emailVerified: true (since email was sent successfully)
         const user = await User.create({
-            name: name.trim(),
-            email: email.toLowerCase().trim(),
+            name: trimmedName,
+            email: trimmedEmail,
             password,
             phone: phone || '',
             address: address || '',
-            role: 'customer' // Default role for registration
+            role: 'customer',
+            emailVerified: true
         });
 
-        // Send welcome email
-        try {
-            await emailService.sendWelcomeEmail(user.email, user.name);
-            console.log(`Welcome email sent to ${user.email}`);
-        } catch (emailError) {
-            console.error('Failed to send welcome email:', emailError);
-            // Don't fail registration if email fails
-        }
-
+        console.log(`Welcome email sent to ${trimmedEmail}`);
         sendTokenResponse(user, 201, res, 'Registration successful');
+
     } catch (error) {
         console.error('Registration error:', error);
 
@@ -110,6 +120,14 @@ exports.register = async (req, res, next) => {
             return res.status(400).json({
                 success: false,
                 message
+            });
+        }
+
+        // Handle email service errors
+        if (error.message && (error.message.includes('email') || error.message.includes('SMTP'))) {
+            return res.status(500).json({
+                success: false,
+                message: 'Registration failed due to email service error. Please try again.'
             });
         }
 
