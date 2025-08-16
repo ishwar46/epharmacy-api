@@ -105,7 +105,7 @@ exports.updateUserProfile = async (req, res, next) => {
                 const fs = require('fs');
                 const path = require('path');
                 const oldImagePath = path.join(__dirname, '..', user.profilePicture);
-                
+
                 try {
                     if (fs.existsSync(oldImagePath)) {
                         fs.unlinkSync(oldImagePath);
@@ -116,7 +116,7 @@ exports.updateUserProfile = async (req, res, next) => {
                     // Don't fail the update if file deletion fails
                 }
             }
-            
+
             user.profilePicture = `/uploads/userProfiles/${req.file.filename}`;
         }
 
@@ -147,7 +147,7 @@ exports.updateUserProfile = async (req, res, next) => {
 // @access  Private
 exports.deleteUserAccount = async (req, res, next) => {
     try {
-        const { password } = req.body;
+        const { password, reason } = req.body;
 
         if (!password) {
             return res.status(400).json({
@@ -168,12 +168,72 @@ exports.deleteUserAccount = async (req, res, next) => {
             });
         }
 
+        // Check for active orders
+        const Order = require('../models/Order');
+        const activeOrders = await Order.find({
+            'customer.user': user._id,
+            status: { $nin: ['delivered', 'cancelled'] }
+        });
+
+        if (activeOrders.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot delete account. You have ${activeOrders.length} active order(s). Please wait for delivery or cancel them first.`
+            });
+        }
+
+        // Get user's order history for archive
+        const orderStats = await Order.aggregate([
+            { $match: { 'customer.user': user._id } },
+            {
+                $group: {
+                    _id: null,
+                    totalOrders: { $sum: 1 },
+                    totalSpent: { $sum: '$pricing.total' },
+                    lastOrderDate: { $max: '$createdAt' }
+                }
+            }
+        ]);
+
+        const stats = orderStats[0] || {
+            totalOrders: 0,
+            totalSpent: 0,
+            lastOrderDate: null
+        };
+
+        // Archive user data before deletion
+        const DeletedUser = require('../models/DeletedUser');
+        await DeletedUser.create({
+            originalUserId: user._id,
+            userData: {
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                address: user.address,
+                location: user.location,
+                role: user.role,
+                profilePicture: user.profilePicture,
+                isVerified: user.isVerified,
+                emailVerified: user.emailVerified,
+                lastLogin: user.lastLogin,
+                createdAt: user.createdAt
+            },
+            deletedBy: user._id, // Self-deletion
+            deletionReason: reason || 'self_request',
+            relatedData: {
+                totalOrders: stats.totalOrders,
+                totalSpent: stats.totalSpent,
+                lastOrderDate: stats.lastOrderDate,
+                hadActiveOrders: false
+            }
+        });
+
         // Delete profile picture if it exists
         if (user.profilePicture) {
             const fs = require('fs');
             const path = require('path');
             const imagePath = path.join(__dirname, '..', user.profilePicture);
-            
+
             try {
                 if (fs.existsSync(imagePath)) {
                     fs.unlinkSync(imagePath);
@@ -188,11 +248,17 @@ exports.deleteUserAccount = async (req, res, next) => {
         user.status = 'inactive';
         user.email = `${user.email}_deleted_${Date.now()}`;
         user.profilePicture = ''; // Clear profile picture path
+        user.name = 'Deleted User'; // Anonymize
+        user.phone = '';
+        user.address = '';
+        user.location = undefined;
         await user.save();
+
+        console.log(`User account deleted: ${user.email} (ID: ${user._id})`);
 
         res.status(200).json({
             success: true,
-            message: 'Account deactivated successfully'
+            message: 'Account deleted successfully. Your data has been archived for legal compliance.'
         });
     } catch (error) {
         next(error);
