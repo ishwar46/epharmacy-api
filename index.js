@@ -46,7 +46,7 @@ if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('combined'));
 }
 
-// Rate limiting
+// Rate limiting for sensitive routes
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
@@ -56,7 +56,6 @@ const limiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
-app.use(limiter);
 
 // Import auth rate limiter from auth middleware
 const { authLimiter } = require('./middleware/auth');
@@ -68,7 +67,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Configure CORS
 const allowedOrigins = process.env.ALLOWED_ORIGINS ?
     process.env.ALLOWED_ORIGINS.split(',') :
-    ['http://localhost:3000', 'http://localhost:3001'];
+    ['http://localhost:5173', 'http://localhost:5174'];
 
 const corsOptions = {
     origin: function (origin, callback) {
@@ -85,13 +84,13 @@ app.use(cors(corsOptions));
 
 // Hook up routes
 app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', limiter, adminRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
+app.use('/api/orders', limiter, orderRoutes);
 app.use('/api/cart', cartRoutes);
-app.use('/api/admin/orders', adminOrderRoutes);
-app.use('/api/user', userRoutes);
-app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/admin/orders', limiter, adminOrderRoutes);
+app.use('/api/user', limiter, userRoutes);
+app.use('/api/prescriptions', limiter, prescriptionRoutes);
 
 // Serve static files after API routes
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
