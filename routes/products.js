@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
     getProducts,
+    getCategories,
     getProduct,
     createProduct,
     updateProduct,
@@ -19,6 +20,8 @@ const { uploadProductImages } = require('../middleware/upload');
 // Get all products with filtering and search
 // GET /api/products?search=paracetamol&category=Pain Relief&medicineType=OTC&inStock=true&page=1&limit=20
 router.get('/', getProducts);
+
+router.get('/categories', getCategories);
 
 // Get single product details
 // GET /api/products/60f1b2b3c4d5e6f7g8h9i0j1

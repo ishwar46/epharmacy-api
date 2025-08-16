@@ -12,14 +12,14 @@ const {
 } = require('../controllers/userController');
 
 // Multer config for user profile pictures
-const uploadUserProfile = require("../utils/uploadUserProfile");
+const { profileUpload } = require("../utils/multer");
 
 // All user routes are protected (require authentication)
 router.use(protect);
 
 // Profile routes
 router.get('/profile', getUserProfile);
-router.put('/profile', uploadUserProfile.single('profilePicture'), updateUserProfile);
+router.put('/profile', profileUpload.single('profilePicture'), updateUserProfile);
 
 // Account management
 router.delete('/account', deleteUserAccount);

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { PRODUCT_CATEGORIES, MEDICINE_TYPES, PRODUCT_TYPES } = require('../constants/categories');
 
 const ProductSchema = new mongoose.Schema({
     // Basic Information
@@ -19,32 +20,21 @@ const ProductSchema = new mongoose.Schema({
     },
     category: {
         type: String,
-        enum: [
-            'Beauty & Cosmetic', 'Oral Care', 'Antiseptic & Disinfectant',
-            'Anti-Hypertensive', 'Analgesic/Antipyretic', 'Anti-Histamin/Allergy',
-            'Cough & Cold', 'Cream and Ointment', 'Eye and Ear', 'ENT DROPS',
-            'Anti-Coagulants', 'Allergy', 'NSAIDs', 'Steroids', 'Anti-Fungal',
-            'Personal Care', "Men's Care", 'Health Kits', 'Medical Equipment',
-            'Digital Stethoscope', 'Herbal', 'Herbal Tea', 'Oil', 'Baby Food',
-            'Health and Beauty', 'Baby Products', 'Surgical Items & Equipment',
-            'Diuretics', 'Pain Relief', 'Anti-Thyroid', 'Vitamin & Supplements',
-            'Anti-Inflammatory', 'Anti-Biotic', 'Gastrology', 'Cardiac',
-            'Diabetes', 'Anti-Cold', 'Asthma', 'Ayurveda', 'Women Hygiene', 'Anti-Cancer'
-        ],
+        enum: PRODUCT_CATEGORIES,
         required: [true, 'Please specify a valid category']
     },
 
     // Medicine Type - Simple
     medicineType: {
         type: String,
-        enum: ['OTC', 'Prescription'],
+        enum: MEDICINE_TYPES,
         required: [true, 'Please specify medicine type']
     },
 
     // Simplified Packaging - Only for tablets/capsules that can be sold individually
     productType: {
         type: String,
-        enum: ['tablet', 'capsule', 'syrup', 'cream', 'injection', 'other'],
+        enum: PRODUCT_TYPES,
         required: [true, 'Please specify product type']
     },
 
