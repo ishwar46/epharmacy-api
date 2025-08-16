@@ -100,6 +100,23 @@ exports.updateUserProfile = async (req, res, next) => {
 
         // If a new profile picture was uploaded (req.file)
         if (req.file) {
+            // Delete old profile picture if it exists
+            if (user.profilePicture) {
+                const fs = require('fs');
+                const path = require('path');
+                const oldImagePath = path.join(__dirname, '..', user.profilePicture);
+                
+                try {
+                    if (fs.existsSync(oldImagePath)) {
+                        fs.unlinkSync(oldImagePath);
+                        console.log('Old profile picture deleted:', oldImagePath);
+                    }
+                } catch (error) {
+                    console.error('Error deleting old profile picture:', error);
+                    // Don't fail the update if file deletion fails
+                }
+            }
+            
             user.profilePicture = `/uploads/userProfiles/${req.file.filename}`;
         }
 
@@ -151,9 +168,26 @@ exports.deleteUserAccount = async (req, res, next) => {
             });
         }
 
+        // Delete profile picture if it exists
+        if (user.profilePicture) {
+            const fs = require('fs');
+            const path = require('path');
+            const imagePath = path.join(__dirname, '..', user.profilePicture);
+            
+            try {
+                if (fs.existsSync(imagePath)) {
+                    fs.unlinkSync(imagePath);
+                    console.log('Profile picture deleted on account deletion:', imagePath);
+                }
+            } catch (error) {
+                console.error('Error deleting profile picture on account deletion:', error);
+            }
+        }
+
         // Instead of hard delete, deactivate account
         user.status = 'inactive';
         user.email = `${user.email}_deleted_${Date.now()}`;
+        user.profilePicture = ''; // Clear profile picture path
         await user.save();
 
         res.status(200).json({

@@ -2,6 +2,9 @@ const cron = require('node-cron');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const User = require('../models/User');
+const fs = require('fs');
+const path = require('path');
 
 console.log('🚀 Initializing FixPharmacy background jobs...');
 
@@ -152,6 +155,77 @@ cron.schedule('0 23 * * *', async () => {
 // WEEKLY MAINTENANCE JOBS
 // ==========================================
 
+// Clean up orphaned images every Sunday at 1 AM
+cron.schedule('0 1 * * 0', async () => {
+    try {
+        console.log('🖼️  Cleaning up orphaned images...');
+
+        const uploadDirs = [
+            'uploads/userProfiles',
+            'uploads/productImages',
+            'uploads/prescriptions',
+            'uploads/clientSignatures'
+        ];
+
+        let totalCleaned = 0;
+
+        for (const uploadDir of uploadDirs) {
+            const dirPath = path.join(__dirname, '..', uploadDir);
+            
+            if (!fs.existsSync(dirPath)) {
+                console.log(`   ⚠️  Directory not found: ${uploadDir}`);
+                continue;
+            }
+
+            const files = fs.readdirSync(dirPath);
+            console.log(`   📁 Checking ${files.length} files in ${uploadDir}`);
+
+            for (const file of files) {
+                const filePath = path.join(dirPath, file);
+                const relativePath = `/${uploadDir}/${file}`;
+
+                let isReferenced = false;
+
+                // Check if image is referenced in database
+                if (uploadDir === 'uploads/userProfiles') {
+                    const userCount = await User.countDocuments({ 
+                        profilePicture: relativePath,
+                        status: { $ne: 'inactive' }
+                    });
+                    isReferenced = userCount > 0;
+                } else if (uploadDir === 'uploads/productImages') {
+                    const productCount = await Product.countDocuments({ 
+                        images: relativePath 
+                    });
+                    isReferenced = productCount > 0;
+                }
+                // Add more checks for prescriptions and signatures as needed
+
+                // Delete if not referenced and file is older than 7 days
+                if (!isReferenced) {
+                    const stats = fs.statSync(filePath);
+                    const fileAge = Date.now() - stats.mtime.getTime();
+                    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+                    if (fileAge > sevenDays) {
+                        try {
+                            fs.unlinkSync(filePath);
+                            console.log(`   🗑️  Deleted orphaned file: ${relativePath}`);
+                            totalCleaned++;
+                        } catch (deleteError) {
+                            console.error(`   ❌ Failed to delete ${relativePath}:`, deleteError);
+                        }
+                    }
+                }
+            }
+        }
+
+        console.log(`✅ Orphaned image cleanup completed. Deleted ${totalCleaned} files`);
+    } catch (error) {
+        console.error('❌ Orphaned image cleanup job failed:', error);
+    }
+});
+
 // Clean up old status history every Sunday at 2 AM
 cron.schedule('0 2 * * 0', async () => {
     try {
@@ -259,6 +333,65 @@ const manualTriggers = {
         return orders.length;
     },
 
+    // Manual orphaned image cleanup
+    cleanupOrphanedImages: async () => {
+        console.log('🔧 Manual orphaned image cleanup triggered...');
+        
+        const uploadDirs = [
+            'uploads/userProfiles',
+            'uploads/productImages',
+            'uploads/prescriptions',
+            'uploads/clientSignatures'
+        ];
+
+        let totalCleaned = 0;
+
+        for (const uploadDir of uploadDirs) {
+            const dirPath = path.join(__dirname, '..', uploadDir);
+            
+            if (!fs.existsSync(dirPath)) continue;
+
+            const files = fs.readdirSync(dirPath);
+
+            for (const file of files) {
+                const filePath = path.join(dirPath, file);
+                const relativePath = `/${uploadDir}/${file}`;
+
+                let isReferenced = false;
+
+                if (uploadDir === 'uploads/userProfiles') {
+                    const userCount = await User.countDocuments({ 
+                        profilePicture: relativePath,
+                        status: { $ne: 'inactive' }
+                    });
+                    isReferenced = userCount > 0;
+                } else if (uploadDir === 'uploads/productImages') {
+                    const productCount = await Product.countDocuments({ 
+                        images: relativePath 
+                    });
+                    isReferenced = productCount > 0;
+                }
+
+                if (!isReferenced) {
+                    const stats = fs.statSync(filePath);
+                    const fileAge = Date.now() - stats.mtime.getTime();
+                    const sevenDays = 7 * 24 * 60 * 60 * 1000;
+
+                    if (fileAge > sevenDays) {
+                        try {
+                            fs.unlinkSync(filePath);
+                            totalCleaned++;
+                        } catch (deleteError) {
+                            console.error(`Failed to delete ${relativePath}:`, deleteError);
+                        }
+                    }
+                }
+            }
+        }
+
+        return { cleanedFiles: totalCleaned };
+    },
+
     // Get system health status
     getSystemHealth: async () => {
         try {
@@ -311,6 +444,7 @@ console.log('   🧹 Cart cleanup: Every 10 minutes');
 console.log('   📦 Low stock check: Every 6 hours');
 console.log('   💰 Revenue recording: Every hour');
 console.log('   📊 Daily report: 11 PM daily');
+console.log('   🖼️  Image cleanup: Sunday 1 AM');
 console.log('   🗑️  History cleanup: Sunday 2 AM');
 console.log('   📈 Weekly report: Monday 8 AM');
 
