@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to {{appName}}</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+      }
+      .container {
+        max-width: 600px;
+        margin: 20px auto;
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      }
+      .header {
+        background: linear-gradient(135deg, #4a90e2 0%, #f8f9fa 100%);
+        color: #333;
+        padding: 30px;
+        text-align: center;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .content {
+        padding: 40px 30px;
+      }
+      .welcome-message {
+        font-size: 18px;
+        color: #333;
+        margin-bottom: 20px;
+      }
+      .features {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 25px;
+        margin: 25px 0;
+      }
+      .features h3 {
+        color: #4a90e2;
+        margin-top: 0;
+        margin-bottom: 15px;
+      }
+      .feature-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .feature-list li {
+        padding: 8px 0;
+        border-bottom: 1px solid #eee;
+        position: relative;
+        padding-left: 25px;
+      }
+      .feature-list li:last-child {
+        border-bottom: none;
+      }
+      .feature-list li::before {
+        content: "✓";
+        position: absolute;
+        left: 0;
+        color: #4caf50;
+        font-weight: bold;
+      }
+      .cta-button {
+        display: inline-block;
+        background: #4a90e2;
+        color: white;
+        text-decoration: none;
+        padding: 15px 30px;
+        border-radius: 5px;
+        font-weight: 600;
+        margin: 20px 0;
+        text-align: center;
+      }
+      .footer {
+        background: #f8f9fa;
+        padding: 20px 30px;
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+      }
+      .social-links {
+        margin: 15px 0;
+      }
+      .social-links a {
+        display: inline-block;
+        margin: 0 10px;
+        color: #4a90e2;
+        text-decoration: none;
+      }
+      @media only screen and (max-width: 600px) {
+        .container {
+          margin: 10px;
+          border-radius: 5px;
+        }
+        .header,
+        .content,
+        .footer {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <img
+          src="{{logoUrl}}"
+          alt="{{appName}} Logo"
+          style="max-height: 60px; margin-bottom: 15px"
+        />
+        <h1>Welcome to {{appName}}!</h1>
+      </div>
+
+      <div class="content">
+        <div class="welcome-message">
+          <h2>Hello {{userName}}!</h2>
+          <p>
+            Thank you for joining {{appName}} - your trusted online pharmacy
+            partner. We're excited to help you manage your health and wellness
+            journey.
+          </p>
+        </div>
+
+        <div class="features">
+          <h3>What you can do with {{appName}}:</h3>
+          <ul class="feature-list">
+            <li>Browse thousands of genuine medicines and health products</li>
+            <li>Upload prescriptions for prescription medicines</li>
+            <li>Enjoy fast and secure doorstep delivery</li>
+            <li>Track your orders in real-time</li>
+            <li>Get expert health advice from our pharmacists</li>
+            <li>Manage your health records securely</li>
+          </ul>
+        </div>
+
+        <p style="color: #555; margin: 25px 0">
+          Your account is now active and ready to use. Start exploring our wide
+          range of products and services designed to make healthcare accessible
+          and convenient.
+        </p>
+
+        <div style="text-align: center">
+          <a href="{{websiteUrl}}" class="cta-button">Start Shopping Now</a>
+        </div>
+
+        <p style="color: #777; font-size: 14px; margin-top: 30px">
+          <strong>Need help?</strong> Our customer support team is available
+          24/7 to assist you. Contact us at
+          <a href="mailto:{{supportEmail}}" style="color: #667eea"
+            >{{supportEmail}}</a
+          >
+        </p>
+      </div>
+
+      <div class="footer">
+        <p><strong>{{appName}}</strong> - Your Health, Our Priority</p>
+        <div class="social-links">
+          <a href="#">Facebook</a> | <a href="#">Twitter</a> |
+          <a href="#">Instagram</a> |
+          <a href="#">LinkedIn</a>
+        </div>
+        <p style="margin-top: 15px; font-size: 12px; color: #999">
+          This email was sent to you because you registered for an account with
+          {{appName}}. If you have any questions, please contact our support
+          team.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>
