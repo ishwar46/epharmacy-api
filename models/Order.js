@@ -85,9 +85,9 @@ const OrderItemSchema = new mongoose.Schema({
 const OrderSchema = new mongoose.Schema({
     // Order Identification - REMOVED required: true to let pre-save generate it
     orderNumber: {
-        type: String,
-        unique: true
+        type: String
         // removed required: true - will be generated in pre-save
+        // unique index is defined explicitly below in schema.index()
     },
 
     // Customer Information - supports both registered users and guests

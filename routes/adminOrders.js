@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const upload = require("../utils/multer");
+const { signatureUpload } = require("../utils/multer");
 
 const {
     getAllOrders,
@@ -19,6 +19,6 @@ router.get('/', getAllOrders);
 router.get('/:orderId', getOrderById);
 
 // Use ONE single PUT route that includes Multer's middleware:
-router.put('/:orderId', upload.single('customerSignature'), updateOrder);
+router.put('/:orderId', signatureUpload.single('customerSignature'), updateOrder);
 
 module.exports = router;

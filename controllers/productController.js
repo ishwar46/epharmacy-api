@@ -86,6 +86,26 @@ exports.getProducts = async (req, res, next) => {
     }
 };
 
+// @desc    Get product categories for filter dropdown
+// @route   GET /api/products/categories
+// @access  Public
+exports.getCategories = async (req, res, next) => {
+    try {
+        const categories = await Product.distinct('category', { status: 'active' });
+        const medicineTypes = await Product.distinct('medicineType', { status: 'active' });
+
+        res.status(200).json({
+            success: true,
+            data: {
+                categories: categories.sort(),
+                medicineTypes: medicineTypes.sort()
+            }
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 // @desc    Get single product
 // @route   GET /api/products/:id
 // @access  Public
