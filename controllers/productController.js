@@ -168,8 +168,11 @@ exports.updateProduct = async (req, res, next) => {
 
         // Handle new image uploads
         if (req.files && req.files.length > 0) {
-            const newPaths = req.files.map(file => `/uploads/productImages/${file.filename}`);
-            updateFields.images = newPaths;
+            const currentProduct = await Product.findById(req.params.id);
+            if (currentProduct) {
+                const newPaths = req.files.map(file => `/uploads/productImages/${file.filename}`);
+                updateFields.images = [...(currentProduct.images || []), ...newPaths];
+            }
         }
 
         const product = await Product.findByIdAndUpdate(

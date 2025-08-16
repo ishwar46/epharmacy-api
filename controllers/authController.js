@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const emailService = require('../utils/emailService');
 
 // Helper function to generate JWT token
 const generateToken = (id) => {
@@ -81,6 +82,15 @@ exports.register = async (req, res, next) => {
             address: address || '',
             role: 'customer' // Default role for registration
         });
+
+        // Send welcome email
+        try {
+            await emailService.sendWelcomeEmail(user.email, user.name);
+            console.log(`Welcome email sent to ${user.email}`);
+        } catch (emailError) {
+            console.error('Failed to send welcome email:', emailError);
+            // Don't fail registration if email fails
+        }
 
         sendTokenResponse(user, 201, res, 'Registration successful');
     } catch (error) {
