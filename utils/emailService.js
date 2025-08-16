@@ -67,7 +67,7 @@ class EmailService {
                 appName: process.env.APP_NAME || 'FixPharmacy',
                 supportEmail: process.env.SUPPORT_EMAIL || 'support@fixpharmacy.com',
                 websiteUrl: process.env.FRONTEND_URL || 'http://localhost:5173',
-                logoUrl: process.env.LOGO_URL || 'https://via.placeholder.com/200x60/4A90E2/white?text=FixPharmacy'
+                logoUrl: process.env.LOGO_URL || 'https://i.ibb.co/RGtZpS0q/fixpharmacy.png'
             }
         });
     }
