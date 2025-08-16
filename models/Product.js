@@ -85,6 +85,19 @@ const ProductSchema = new mongoose.Schema({
         min: 0
     },
 
+    // Minimum purchase quantities
+    minOrderQuantity: {
+        type: Number,
+        default: 1,
+        min: 1
+    },
+
+    // Maximum purchase quantities (optional)
+    maxOrderQuantity: {
+        type: Number,
+        default: null
+    },
+
     // Stock unit - strips, bottles, pieces, etc.
     stockUnit: {
         type: String,

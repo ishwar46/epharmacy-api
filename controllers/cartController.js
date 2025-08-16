@@ -195,6 +195,22 @@ exports.addToCart = async (req, res, next) => {
             });
         }
 
+        // Validate minimum purchase quantity
+        if (quantity < product.minOrderQuantity) {
+            return res.status(400).json({
+                success: false,
+                message: `Minimum order quantity is ${product.minOrderQuantity} ${purchaseType === 'unit' ? 'units' : 'packages'}`
+            });
+        }
+
+        // Validate maximum purchase quantity (if set)
+        if (product.maxOrderQuantity && quantity > product.maxOrderQuantity) {
+            return res.status(400).json({
+                success: false,
+                message: `Maximum order quantity is ${product.maxOrderQuantity} ${purchaseType === 'unit' ? 'units' : 'packages'}`
+            });
+        }
+
         // Calculate pricing and stock needed
         const { pricePerItem, stockNeeded } = calculatePricing(product, purchaseType, quantity);
 
@@ -296,6 +312,22 @@ exports.updateCartItem = async (req, res, next) => {
                 success: true,
                 message: 'Item removed from cart',
                 data: finalCart
+            });
+        }
+
+        // Validate minimum purchase quantity for updates
+        if (quantity < product.minOrderQuantity) {
+            return res.status(400).json({
+                success: false,
+                message: `Minimum order quantity is ${product.minOrderQuantity} ${purchaseType === 'unit' ? 'units' : 'packages'}`
+            });
+        }
+
+        // Validate maximum purchase quantity (if set)
+        if (product.maxOrderQuantity && quantity > product.maxOrderQuantity) {
+            return res.status(400).json({
+                success: false,
+                message: `Maximum order quantity is ${product.maxOrderQuantity} ${purchaseType === 'unit' ? 'units' : 'packages'}`
             });
         }
 
@@ -433,10 +465,27 @@ exports.checkAvailability = async (req, res, next) => {
             });
         }
 
+        // Check quantity constraints
+        const minQtyValid = quantity >= product.minOrderQuantity;
+        const maxQtyValid = !product.maxOrderQuantity || quantity <= product.maxOrderQuantity;
+        
         const { pricePerItem, stockNeeded } = calculatePricing(product, purchaseType, quantity);
         const availableStock = product.stock - (product.reservedStock || 0);
 
-        const isAvailable = availableStock >= stockNeeded;
+        const stockAvailable = availableStock >= stockNeeded;
+        const isAvailable = minQtyValid && maxQtyValid && stockAvailable;
+
+        // Build validation messages
+        const validationMessages = [];
+        if (!minQtyValid) {
+            validationMessages.push(`Minimum order quantity is ${product.minOrderQuantity}`);
+        }
+        if (!maxQtyValid) {
+            validationMessages.push(`Maximum order quantity is ${product.maxOrderQuantity}`);
+        }
+        if (!stockAvailable) {
+            validationMessages.push(`Insufficient stock. Available: ${availableStock}`);
+        }
 
         res.status(200).json({
             success: true,
@@ -446,6 +495,11 @@ exports.checkAvailability = async (req, res, next) => {
                 totalPrice: pricePerItem * quantity,
                 stockNeeded,
                 availableStock,
+                validationMessages,
+                constraints: {
+                    minOrderQuantity: product.minOrderQuantity,
+                    maxOrderQuantity: product.maxOrderQuantity
+                },
                 product: {
                     name: product.name,
                     productType: product.productType,
