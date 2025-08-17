@@ -46,11 +46,21 @@ const ProductSchema = new mongoose.Schema({
         }
     },
 
-    // Can this product be sold per unit? (only for tablets/capsules)
+    // Can this product be sold per unit? (ONLY for tablets/capsules)
     allowUnitSale: {
         type: Boolean,
         default: function () {
             return ['tablet', 'capsule'].includes(this.productType);
+        },
+        validate: {
+            validator: function(value) {
+                // If allowUnitSale is true, productType must be tablet or capsule
+                if (value === true) {
+                    return ['tablet', 'capsule'].includes(this.productType);
+                }
+                return true;
+            },
+            message: 'Unit sales are only allowed for tablets and capsules'
         }
     },
 
@@ -195,6 +205,17 @@ ProductSchema.pre('save', function (next) {
     // Ensure reserved stock doesn't exceed total stock
     if (this.reservedStock > this.stock) {
         this.reservedStock = this.stock;
+    }
+
+    // Enforce unit sale restriction: only tablets and capsules can be sold per unit
+    if (!['tablet', 'capsule'].includes(this.productType)) {
+        this.allowUnitSale = false;
+        this.unitsPerStrip = 1;
+    }
+
+    // Ensure unitsPerStrip is set correctly for tablets/capsules
+    if (['tablet', 'capsule'].includes(this.productType) && (!this.unitsPerStrip || this.unitsPerStrip < 1)) {
+        this.unitsPerStrip = 10; // Default value
     }
 
     next();

@@ -1,6 +1,38 @@
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 
+// Helper function to transform cart data for consistent API responses
+const transformCartResponse = (cart) => {
+    const transformedItems = cart.items.map(item => ({
+        _id: item._id,
+        product: {
+            _id: item.product._id,
+            name: item.product.name,
+            brand: item.product.brand,
+            productType: item.product.productType,
+            unitsPerStrip: item.product.unitsPerStrip,
+            allowUnitSale: item.product.allowUnitSale,
+            images: item.product.images,
+            stock: item.product.stock,
+            price: item.product.price
+        },
+        quantity: item.quantity,
+        purchaseType: item.purchaseType,
+        pricePerItem: item.pricePerItem,
+        totalPrice: item.totalPrice,
+        addedAt: item.addedAt
+    }));
+
+    return {
+        _id: cart._id,
+        items: transformedItems,
+        subtotal: cart.subtotal,
+        totalItems: cart.totalItems,
+        isEmpty: cart.items.length === 0,
+        expiresAt: cart.expiresAt
+    };
+};
+
 // Helper function to get or create cart
 const getOrCreateCart = async (userId = null, guestId = null) => {
     // Prioritize user ID over guest ID
@@ -118,37 +150,9 @@ exports.getCart = async (req, res, next) => {
         cart.extendExpiration();
         await cart.save();
 
-        // Transform cart data for response
-        const transformedItems = cart.items.map(item => ({
-            _id: item._id,
-            product: {
-                _id: item.product._id,
-                name: item.product.name,
-                brand: item.product.brand,
-                productType: item.product.productType,
-                unitsPerStrip: item.product.unitsPerStrip,
-                allowUnitSale: item.product.allowUnitSale,
-                images: item.product.images,
-                stock: item.product.stock,
-                price: item.product.price
-            },
-            quantity: item.quantity,
-            purchaseType: item.purchaseType,
-            pricePerItem: item.pricePerItem,
-            totalPrice: item.totalPrice,
-            addedAt: item.addedAt
-        }));
-
         res.status(200).json({
             success: true,
-            data: {
-                _id: cart._id,
-                items: transformedItems,
-                subtotal: cart.subtotal,
-                totalItems: cart.totalItems,
-                isEmpty: cart.items.length === 0,
-                expiresAt: cart.expiresAt
-            }
+            data: transformCartResponse(cart)
         });
     } catch (error) {
         next(error);
@@ -211,6 +215,22 @@ exports.addToCart = async (req, res, next) => {
             });
         }
 
+        // Validate purchase type for product - STRICT enforcement
+        if (purchaseType === 'unit') {
+            if (!['tablet', 'capsule'].includes(product.productType)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Only tablets and capsules can be sold as individual units. ${product.productType}s are only available as complete packages.`
+                });
+            }
+            if (!product.allowUnitSale) {
+                return res.status(400).json({
+                    success: false,
+                    message: `This ${product.productType} is not available for individual unit purchase. Only complete packages are available.`
+                });
+            }
+        }
+
         // Calculate pricing and stock needed
         const { pricePerItem, stockNeeded } = calculatePricing(product, purchaseType, quantity);
 
@@ -239,7 +259,7 @@ exports.addToCart = async (req, res, next) => {
             res.status(200).json({
                 success: true,
                 message: 'Item added to cart successfully',
-                data: updatedCart
+                data: transformCartResponse(updatedCart)
             });
         } catch (cartError) {
             // If cart update fails, release the reserved stock
@@ -288,7 +308,7 @@ exports.updateCartItem = async (req, res, next) => {
 
         // Find current cart item
         const currentItem = cart.items.find(
-            item => item.product.toString() === productId && item.purchaseType === purchaseType
+            item => (item.product._id || item.product).toString() === productId && item.purchaseType === purchaseType
         );
 
         if (!currentItem) {
@@ -296,6 +316,22 @@ exports.updateCartItem = async (req, res, next) => {
                 success: false,
                 message: 'Item not found in cart'
             });
+        }
+
+        // Validate purchase type for product - STRICT enforcement
+        if (purchaseType === 'unit') {
+            if (!['tablet', 'capsule'].includes(product.productType)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Only tablets and capsules can be sold as individual units. ${product.productType}s are only available as complete packages.`
+                });
+            }
+            if (!product.allowUnitSale) {
+                return res.status(400).json({
+                    success: false,
+                    message: `This ${product.productType} is not available for individual unit purchase. Only complete packages are available.`
+                });
+            }
         }
 
         if (quantity === 0) {
@@ -311,7 +347,7 @@ exports.updateCartItem = async (req, res, next) => {
             return res.status(200).json({
                 success: true,
                 message: 'Item removed from cart',
-                data: finalCart
+                data: transformCartResponse(finalCart)
             });
         }
 
@@ -361,7 +397,7 @@ exports.updateCartItem = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: 'Cart updated successfully',
-            data: updatedCart
+            data: transformCartResponse(updatedCart)
         });
     } catch (error) {
         next(error);
@@ -400,7 +436,7 @@ exports.removeFromCart = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: 'Item removed from cart',
-            data: finalCart
+            data: transformCartResponse(finalCart)
         });
     } catch (error) {
         next(error);
@@ -465,10 +501,26 @@ exports.checkAvailability = async (req, res, next) => {
             });
         }
 
+        // Validate purchase type for product - STRICT enforcement
+        if (purchaseType === 'unit') {
+            if (!['tablet', 'capsule'].includes(product.productType)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Only tablets and capsules can be sold as individual units. ${product.productType}s are only available as complete packages.`
+                });
+            }
+            if (!product.allowUnitSale) {
+                return res.status(400).json({
+                    success: false,
+                    message: `This ${product.productType} is not available for individual unit purchase. Only complete packages are available.`
+                });
+            }
+        }
+
         // Check quantity constraints
         const minQtyValid = quantity >= product.minOrderQuantity;
         const maxQtyValid = !product.maxOrderQuantity || quantity <= product.maxOrderQuantity;
-        
+
         const { pricePerItem, stockNeeded } = calculatePricing(product, purchaseType, quantity);
         const availableStock = product.stock - (product.reservedStock || 0);
 

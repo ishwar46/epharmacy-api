@@ -46,10 +46,21 @@ if (process.env.NODE_ENV !== 'test') {
     app.use(morgan('combined'));
 }
 
-// Rate limiting for sensitive routes
+// Rate limiting for sensitive routes only (not for public browsing)
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
+    max: 500, // increased limit for better UX
+    message: {
+        error: 'Too many requests from this IP, please try again later.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// More lenient limiter for semi-public routes
+const publicLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 1000, // very high limit for public routes
     message: {
         error: 'Too many requests from this IP, please try again later.',
     },
@@ -82,14 +93,14 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Hook up routes
+// Hook up routes with appropriate rate limiting
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/admin', limiter, adminRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', limiter, orderRoutes);
-app.use('/api/cart', cartRoutes);
+app.use('/api/products', productRoutes); // No rate limiting for public product browsing
+app.use('/api/orders', publicLimiter, orderRoutes); // Lenient for order browsing
+app.use('/api/cart', publicLimiter, cartRoutes); // Lenient for cart operations
 app.use('/api/admin/orders', limiter, adminOrderRoutes);
-app.use('/api/user', limiter, userRoutes);
+app.use('/api/user', publicLimiter, userRoutes); // Lenient for user operations
 app.use('/api/prescriptions', limiter, prescriptionRoutes);
 
 // Serve static files after API routes

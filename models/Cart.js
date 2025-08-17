@@ -110,15 +110,39 @@ CartSchema.methods.extendExpiration = function () {
 
 // Method to add item to cart
 CartSchema.methods.addItem = async function (productId, quantity, purchaseType, pricePerItem) {
+    const Product = mongoose.model('Product');
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+        throw new Error('Product not found');
+    }
+
+    // Calculate stock needed based on purchase type
+    let stockNeeded;
+    if (purchaseType === 'unit' && (product.productType === 'tablet' || product.productType === 'capsule')) {
+        stockNeeded = Math.ceil(quantity / (product.unitsPerStrip || 10));
+    } else {
+        stockNeeded = quantity;
+    }
+
     const existingItemIndex = this.items.findIndex(
-        item => item.product.toString() === productId.toString() &&
+        item => (item.product._id || item.product).toString() === productId.toString() &&
             item.purchaseType === purchaseType
     );
 
     if (existingItemIndex > -1) {
-        this.items[existingItemIndex].quantity += quantity;
-        this.items[existingItemIndex].totalPrice = this.items[existingItemIndex].quantity * pricePerItem;
-        this.items[existingItemIndex].reservedStock += quantity;
+        // Calculate new stock needed for the updated quantity
+        const newTotalQuantity = this.items[existingItemIndex].quantity + quantity;
+        let newStockNeeded;
+        if (purchaseType === 'unit' && (product.productType === 'tablet' || product.productType === 'capsule')) {
+            newStockNeeded = Math.ceil(newTotalQuantity / (product.unitsPerStrip || 10));
+        } else {
+            newStockNeeded = newTotalQuantity;
+        }
+
+        this.items[existingItemIndex].quantity = newTotalQuantity;
+        this.items[existingItemIndex].totalPrice = newTotalQuantity * pricePerItem;
+        this.items[existingItemIndex].reservedStock = newStockNeeded;
     } else {
         this.items.push({
             product: productId,
@@ -126,7 +150,7 @@ CartSchema.methods.addItem = async function (productId, quantity, purchaseType, 
             purchaseType,
             pricePerItem,
             totalPrice: quantity * pricePerItem,
-            reservedStock: quantity
+            reservedStock: stockNeeded
         });
     }
 
@@ -137,8 +161,15 @@ CartSchema.methods.addItem = async function (productId, quantity, purchaseType, 
 
 // Method to update item quantity
 CartSchema.methods.updateItemQuantity = async function (productId, purchaseType, newQuantity) {
+    const Product = mongoose.model('Product');
+    const product = await Product.findById(productId);
+    
+    if (!product) {
+        throw new Error('Product not found');
+    }
+
     const itemIndex = this.items.findIndex(
-        item => item.product.toString() === productId.toString() &&
+        item => (item.product._id || item.product).toString() === productId.toString() &&
             item.purchaseType === purchaseType
     );
 
@@ -150,9 +181,18 @@ CartSchema.methods.updateItemQuantity = async function (productId, purchaseType,
         this.items.splice(itemIndex, 1);
     } else {
         const item = this.items[itemIndex];
+        
+        // Calculate stock needed based on purchase type
+        let stockNeeded;
+        if (purchaseType === 'unit' && (product.productType === 'tablet' || product.productType === 'capsule')) {
+            stockNeeded = Math.ceil(newQuantity / (product.unitsPerStrip || 10));
+        } else {
+            stockNeeded = newQuantity;
+        }
+        
         item.quantity = newQuantity;
         item.totalPrice = newQuantity * item.pricePerItem;
-        item.reservedStock = newQuantity;
+        item.reservedStock = stockNeeded;
     }
 
     this.calculateTotals();
@@ -163,7 +203,7 @@ CartSchema.methods.updateItemQuantity = async function (productId, purchaseType,
 // Method to remove item from cart
 CartSchema.methods.removeItem = async function (productId, purchaseType) {
     const itemIndex = this.items.findIndex(
-        item => item.product.toString() === productId.toString() &&
+        item => (item.product._id || item.product).toString() === productId.toString() &&
             item.purchaseType === purchaseType
     );
 

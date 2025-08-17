@@ -7,10 +7,10 @@ const User = require('../models/User');
 const MAX_TOKEN_AGE = 24 * 60 * 60; // 24 hours in seconds
 const AUTH_ERROR_DELAY = 100; // Constant delay to prevent timing attacks
 
-// Rate limiter for authentication attempts
+// Rate limiter for authentication attempts - more reasonable limits
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // limit each IP to 10 requests per windowMs
+    max: 50, // increased limit for development and normal usage
     message: {
         success: false,
         message: 'Too many authentication attempts, please try again later.',
