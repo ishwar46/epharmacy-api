@@ -104,7 +104,7 @@ const createUploadConfig = (subDir = 'general', fileSizeLimit = 2 * 1024 * 1024,
 const signatureUpload = createUploadConfig('clientSignatures', 1 * 1024 * 1024); // 1MB for signatures
 const productUpload = createUploadConfig('productImages', 5 * 1024 * 1024); // 5MB for product images
 const profileUpload = createUploadConfig('userProfiles', 2 * 1024 * 1024); // 2MB for user profiles
-const prescriptionUpload = createUploadConfig('prescriptions', 10 * 1024 * 1024, true); // 10MB for prescriptions, allow PDFs
+const prescriptionUpload = createUploadConfig('prescriptions', 2 * 1024 * 1024, true); // 2MB for prescriptions, allow PDFs
 
 // Reusable error handling middleware
 const handleUploadError = (err, _req, res, next) => {

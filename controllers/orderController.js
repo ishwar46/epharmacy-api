@@ -2,6 +2,7 @@ const Order = require('../models/Order');
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const emailService = require('../utils/emailService');
 
 // Helper function to calculate delivery fee based on location
 const calculateDeliveryFee = (city, area) => {
@@ -205,6 +206,21 @@ exports.createOrder = async (req, res, next) => {
             .populate('items.product', 'name brand images')
             .populate('customer.user', 'name email phone');
 
+        // Send order confirmation email
+        try {
+            const customerEmail = userId 
+                ? populatedOrder.customer.user?.email
+                : guestDetails.email;
+
+            if (customerEmail) {
+                await emailService.sendOrderConfirmation(customerEmail, populatedOrder);
+                console.log(`Order confirmation email sent to ${customerEmail} for order ${populatedOrder.orderNumber}`);
+            }
+        } catch (emailError) {
+            console.error('Error sending order confirmation email:', emailError);
+            // Don't fail the order creation if email fails
+        }
+
         res.status(201).json({
             success: true,
             message: 'Order created successfully',
@@ -328,6 +344,20 @@ exports.updateOrderStatus = async (req, res, next) => {
             .populate('items.product')
             .populate('customer.user', 'name email phone')
             .populate('statusHistory.changedBy', 'name');
+
+        // Send status update email to customer
+        try {
+            const customerEmail = updatedOrder.customer.user?.email || 
+                                updatedOrder.customer.guestDetails?.email;
+
+            if (customerEmail) {
+                await emailService.sendOrderStatusUpdate(customerEmail, updatedOrder, status, notes);
+                console.log(`Status update email sent to ${customerEmail} for order ${updatedOrder.orderNumber} - Status: ${status}`);
+            }
+        } catch (emailError) {
+            console.error('Error sending status update email:', emailError);
+            // Don't fail the status update if email fails
+        }
 
         res.status(200).json({
             success: true,
