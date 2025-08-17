@@ -81,6 +81,10 @@
         font-weight: 600;
         margin: 20px 0;
         text-align: center;
+        font-size: 16px;
+      }
+      .cta-button:hover {
+        background: #357abd;
       }
       .footer {
         background: #f8f9fa;
@@ -107,6 +111,10 @@
         .content,
         .footer {
           padding: 20px;
+        }
+        .cta-button {
+          width: 100%;
+          box-sizing: border-box;
         }
       }
     </style>
@@ -136,7 +144,7 @@
           <h3>What you can do with {{appName}}:</h3>
           <ul class="feature-list">
             <li>Browse thousands of genuine medicines and health products</li>
-            <li>Upload prescriptions for prescription medicines</li>
+            <li>Upload prescriptions for prescribed medicines</li>
             <li>Enjoy fast and secure doorstep delivery</li>
             <li>Track your orders in real-time</li>
             <li>Get expert health advice from our pharmacists</li>
@@ -150,14 +158,14 @@
           and convenient.
         </p>
 
-        <div style="text-align: center">
+        <div style="text-align: center; margin: 30px 0">
           <a href="{{websiteUrl}}" class="cta-button">Start Shopping Now</a>
         </div>
 
         <p style="color: #777; font-size: 14px; margin-top: 30px">
           <strong>Need help?</strong> Our customer support team is available
           24/7 to assist you. Contact us at
-          <a href="mailto:{{supportEmail}}" style="color: #667eea"
+          <a href="mailto:{{supportEmail}}" style="color: #4a90e2"
             >{{supportEmail}}</a
           >
         </p>

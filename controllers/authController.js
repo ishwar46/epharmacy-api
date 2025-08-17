@@ -369,12 +369,22 @@ exports.forgotPassword = async (req, res, next) => {
             });
         }
 
-        const user = await User.findByEmail(email);
+        const trimmedEmail = email.toLowerCase().trim();
+        const user = await User.findByEmail(trimmedEmail);
 
         if (!user) {
-            return res.status(404).json({
+            // Return success even if user not found (security best practice)
+            return res.status(200).json({
+                success: true,
+                message: 'If an account with that email exists, we have sent a password reset link.'
+            });
+        }
+
+        // Check if account is active
+        if (user.status !== 'active') {
+            return res.status(400).json({
                 success: false,
-                message: 'No user found with that email'
+                message: 'Account is inactive. Please contact support.'
             });
         }
 
@@ -382,16 +392,32 @@ exports.forgotPassword = async (req, res, next) => {
         const resetToken = user.generatePasswordResetToken();
         await user.save({ validateBeforeSave: false });
 
-        // For now, just return the token (in production, send email)
-        res.status(200).json({
-            success: true,
-            message: 'Password reset token generated',
-            resetToken // Remove this in production
-        });
+        try {
+            // Send password reset email
+            await emailService.sendPasswordReset(user.email, resetToken, user.name);
 
-        // TODO: Send email with reset instructions
+            console.log(`Password reset email sent to ${user.email}`);
+
+            res.status(200).json({
+                success: true,
+                message: 'Password reset link has been sent to your email address'
+            });
+        } catch (emailError) {
+            console.error('Failed to send password reset email:', emailError);
+
+            // Clear the reset token if email fails
+            user.resetPasswordToken = undefined;
+            user.resetPasswordExpiry = undefined;
+            await user.save({ validateBeforeSave: false });
+
+            return res.status(500).json({
+                success: false,
+                message: 'Unable to send reset email. Please try again later.'
+            });
+        }
 
     } catch (error) {
+        console.error('Forgot password error:', error);
         next(error);
     }
 };
@@ -436,14 +462,32 @@ exports.resetPassword = async (req, res, next) => {
             });
         }
 
-        // Set new password
+        // Check if account is active
+        if (user.status !== 'active') {
+            return res.status(400).json({
+                success: false,
+                message: 'Account is inactive. Please contact support.'
+            });
+        }
+
+        // Set new password and clear reset fields
         user.password = password;
         user.resetPasswordToken = undefined;
         user.resetPasswordExpiry = undefined;
+
+        // Reset any login attempts on successful password reset
+        if (user.loginAttempts > 0) {
+            user.loginAttempts = 0;
+            user.lockUntil = undefined;
+        }
+
         await user.save();
+
+        console.log(`Password successfully reset for user: ${user.email}`);
 
         sendTokenResponse(user, 200, res, 'Password reset successful');
     } catch (error) {
+        console.error('Reset password error:', error);
         next(error);
     }
 };
