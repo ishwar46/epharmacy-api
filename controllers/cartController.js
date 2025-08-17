@@ -10,6 +10,7 @@ const transformCartResponse = (cart) => {
             name: item.product.name,
             brand: item.product.brand,
             productType: item.product.productType,
+            medicineType: item.product.medicineType,
             unitsPerStrip: item.product.unitsPerStrip,
             allowUnitSale: item.product.allowUnitSale,
             images: item.product.images,
