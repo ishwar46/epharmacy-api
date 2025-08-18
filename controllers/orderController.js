@@ -208,7 +208,7 @@ exports.createOrder = async (req, res, next) => {
 
         // Send order confirmation email
         try {
-            const customerEmail = userId 
+            const customerEmail = userId
                 ? populatedOrder.customer.user?.email
                 : guestDetails.email;
 
@@ -347,8 +347,8 @@ exports.updateOrderStatus = async (req, res, next) => {
 
         // Send status update email to customer
         try {
-            const customerEmail = updatedOrder.customer.user?.email || 
-                                updatedOrder.customer.guestDetails?.email;
+            const customerEmail = updatedOrder.customer.user?.email ||
+                updatedOrder.customer.guestDetails?.email;
 
             if (customerEmail) {
                 await emailService.sendOrderStatusUpdate(customerEmail, updatedOrder, status, notes);

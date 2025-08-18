@@ -223,8 +223,12 @@ const OrderSchema = new mongoose.Schema({
     // Delivery Information
     delivery: {
         assignedTo: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'User' // Delivery person
+            userId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'User' // Delivery person
+            },
+            name: String,
+            phone: String
         },
         estimatedDeliveryTime: {
             type: Date,
@@ -276,6 +280,63 @@ const OrderSchema = new mongoose.Schema({
             default: false
         }
     },
+
+    // Packing Details
+    packingDetails: {
+        packedAt: Date,
+        packedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        packedItems: [{
+            itemId: String,
+            productName: String,
+            quantity: Number,
+            packedQuantity: Number,
+            batchNumber: String,
+            expiryDate: Date,
+            notes: String
+        }],
+        packingNotes: String,
+        packageWeight: String,
+        packageDimensions: {
+            length: String,
+            width: String,
+            height: String
+        },
+        specialInstructions: String,
+        fragileItems: {
+            type: Boolean,
+            default: false
+        },
+        coldStorage: {
+            type: Boolean,
+            default: false
+        }
+    },
+
+    // Dispatch Details
+    dispatchDetails: {
+        dispatchedAt: Date,
+        dispatchedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User'
+        },
+        deliveryPersonName: String,
+        deliveryPersonPhone: String,
+        vehicleNumber: String,
+        estimatedDeliveryTime: Date,
+        routeInstructions: String,
+        dispatchNotes: String,
+        priorityDelivery: {
+            type: Boolean,
+            default: false
+        },
+        trackingNumber: String
+    },
+
+    // Legacy fields for backward compatibility
+    trackingNumber: String,
 
     // Audit Trail
     statusHistory: [{

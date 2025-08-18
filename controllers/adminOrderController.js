@@ -6,9 +6,12 @@ exports.getAllOrders = async (req, res, next) => {
     try {
         let query = {};
         if (req.query.name) {
-            query = { 'user.name': req.query.name };
+            query = { 'customer.user.name': req.query.name };
         }
-        const orders = await Order.find(query).populate('user', 'name email contactInfo');
+        const orders = await Order.find(query)
+            .populate('customer.user', 'name email phone')
+            .populate('items.product', 'name brand')
+            .sort({ createdAt: -1 });
         res.status(200).json({ success: true, count: orders.length, data: orders });
     } catch (error) {
         next(error);
@@ -19,7 +22,9 @@ exports.getAllOrders = async (req, res, next) => {
 // Get a single order by order ID (Admin view)
 exports.getOrderById = async (req, res, next) => {
     try {
-        const order = await Order.findById(req.params.orderId).populate('user', 'name email contactInfo');
+        const order = await Order.findById(req.params.orderId)
+            .populate('customer.user', 'name email phone')
+            .populate('items.product', 'name brand');
         if (!order) {
             return res.status(404).json({ success: false, message: 'Order not found' });
         }
@@ -32,7 +37,7 @@ exports.getOrderById = async (req, res, next) => {
 // Update order status and upload customer signature (Admin only)
 exports.updateOrder = async (req, res, next) => {
     try {
-        const {
+        let {
             status,
             paymentStatus,
             amountPaid,
@@ -40,25 +45,180 @@ exports.updateOrder = async (req, res, next) => {
             deliveryPersonName,
             deliveryPersonContact,
             estimatedArrivalTime,
+            prescriptionVerification,
+            packingDetails,
+            dispatchDetails,
+            trackingNumber
         } = req.body;
+
+        console.log('Update order request body:', req.body);
+
+        // If prescriptionVerification is a JSON string (from FormData), parse it
+        if (typeof prescriptionVerification === 'string') {
+            try {
+                prescriptionVerification = JSON.parse(prescriptionVerification);
+            } catch (error) {
+                console.error('Failed to parse prescriptionVerification:', error);
+            }
+        }
+
+        // If packingDetails is a JSON string (from FormData), parse it
+        if (typeof packingDetails === 'string') {
+            try {
+                packingDetails = JSON.parse(packingDetails);
+            } catch (error) {
+                console.error('Failed to parse packingDetails:', error);
+            }
+        }
+
+        // If dispatchDetails is a JSON string (from FormData), parse it
+        if (typeof dispatchDetails === 'string') {
+            try {
+                dispatchDetails = JSON.parse(dispatchDetails);
+            } catch (error) {
+                console.error('Failed to parse dispatchDetails:', error);
+            }
+        }
 
         const order = await Order.findById(req.params.orderId);
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found" });
         }
 
+        // Handle prescription verification
+        if (prescriptionVerification) {
+            const { action, prescriptionId, notes, rejectionReason } = prescriptionVerification;
+            console.log('Prescription verification:', prescriptionVerification);
+            
+            // Find the prescription in the order
+            const prescription = order.prescriptions.id(prescriptionId);
+            if (!prescription) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: "Prescription not found in order" 
+                });
+            }
+
+            if (action === 'approve') {
+                prescription.verified = true;
+                prescription.verifiedAt = new Date();
+                prescription.verifiedBy = req.user.id; // Assuming auth middleware sets req.user
+                if (notes) prescription.verificationNotes = notes;
+                
+                // Update overall prescription status
+                const allPrescriptionsVerified = order.prescriptions.every(p => p.verified);
+                if (allPrescriptionsVerified) {
+                    order.prescriptionStatus = 'verified';
+                }
+                
+                console.log('Prescription approved');
+            } else if (action === 'reject') {
+                prescription.verified = false;
+                prescription.rejectionReason = rejectionReason;
+                if (notes) prescription.verificationNotes = notes;
+                
+                // Update overall prescription status to rejected
+                order.prescriptionStatus = 'rejected';
+                
+                console.log('Prescription rejected');
+            }
+        }
+
+        // Handle packing details
+        if (packingDetails) {
+            console.log('Packing details:', packingDetails);
+            
+            // Store packing information
+            order.packingDetails = {
+                packedAt: packingDetails.packedAt ? new Date(packingDetails.packedAt) : new Date(),
+                packedBy: req.user?.id,
+                packedItems: packingDetails.packedItems,
+                packingNotes: packingDetails.packingNotes,
+                packageWeight: packingDetails.packageWeight,
+                packageDimensions: packingDetails.packageDimensions,
+                specialInstructions: packingDetails.specialInstructions,
+                fragileItems: packingDetails.fragileItems || false,
+                coldStorage: packingDetails.coldStorage || false
+            };
+            
+            console.log('Order packed successfully');
+        }
+
+        // Handle dispatch details
+        if (dispatchDetails) {
+            console.log('Dispatch details:', dispatchDetails);
+            
+            // Store dispatch information
+            order.dispatchDetails = {
+                dispatchedAt: dispatchDetails.dispatchedAt ? new Date(dispatchDetails.dispatchedAt) : new Date(),
+                dispatchedBy: req.user?.id,
+                deliveryPersonName: dispatchDetails.deliveryPersonName,
+                deliveryPersonPhone: dispatchDetails.deliveryPersonPhone,
+                vehicleNumber: dispatchDetails.vehicleNumber,
+                estimatedDeliveryTime: dispatchDetails.estimatedDeliveryTime ? new Date(dispatchDetails.estimatedDeliveryTime) : null,
+                routeInstructions: dispatchDetails.routeInstructions,
+                dispatchNotes: dispatchDetails.dispatchNotes,
+                priorityDelivery: dispatchDetails.priorityDelivery || false,
+                trackingNumber: dispatchDetails.trackingNumber
+            };
+
+            // Update legacy tracking number field
+            order.trackingNumber = dispatchDetails.trackingNumber;
+            
+            // Update delivery information for backward compatibility
+            // Ensure delivery object exists
+            if (!order.delivery) {
+                order.delivery = {};
+            }
+            if (!order.delivery.assignedTo) {
+                order.delivery.assignedTo = {};
+            }
+            order.delivery.assignedTo.name = dispatchDetails.deliveryPersonName;
+            order.delivery.assignedTo.phone = dispatchDetails.deliveryPersonPhone;
+            if (dispatchDetails.estimatedDeliveryTime) {
+                order.delivery.estimatedDeliveryTime = new Date(dispatchDetails.estimatedDeliveryTime);
+            }
+            
+            console.log('Order dispatched successfully');
+        }
+
+        // Update tracking number if provided directly
+        if (trackingNumber) {
+            order.trackingNumber = trackingNumber;
+        }
+
         // Update status if provided
-        if (status) order.status = status;
+        if (status) {
+            await order.updateStatus(status, req.user?.id, 'Status updated by admin');
+        }
 
         // Update payment details if provided
-        if (paymentStatus) order.paymentStatus = paymentStatus;
-        if (amountPaid !== undefined) order.amountPaid = amountPaid;
-        if (paymentDate) order.paymentDate = paymentDate;
+        if (paymentStatus) {
+            order.payment.status = paymentStatus;
+        }
+        if (amountPaid !== undefined) {
+            // This might be used for tracking actual payment amount
+            order.amountPaid = amountPaid;
+        }
+        if (paymentDate) {
+            order.payment.paidAt = new Date(paymentDate);
+        }
 
         // Update delivery details
-        if (deliveryPersonName) order.deliveryPersonName = deliveryPersonName;
-        if (deliveryPersonContact) order.deliveryPersonContact = deliveryPersonContact;
-        if (estimatedArrivalTime) order.estimatedArrivalTime = estimatedArrivalTime;
+        if (deliveryPersonName) {
+            if (!order.delivery) order.delivery = {};
+            if (!order.delivery.assignedTo) order.delivery.assignedTo = {};
+            order.delivery.assignedTo.name = deliveryPersonName;
+        }
+        if (deliveryPersonContact) {
+            if (!order.delivery) order.delivery = {};
+            if (!order.delivery.assignedTo) order.delivery.assignedTo = {};
+            order.delivery.assignedTo.phone = deliveryPersonContact;
+        }
+        if (estimatedArrivalTime) {
+            if (!order.delivery) order.delivery = {};
+            order.delivery.estimatedDeliveryTime = new Date(estimatedArrivalTime);
+        }
 
         // Check what Multer captured
         console.log("req.file:", req.file);
@@ -69,7 +229,7 @@ exports.updateOrder = async (req, res, next) => {
         }
 
         await order.save();
-        await order.populate("user", "name email contactInfo");
+        await order.populate('customer.user', 'name email phone');
 
         res.status(200).json({
             success: true,
@@ -77,6 +237,7 @@ exports.updateOrder = async (req, res, next) => {
             data: order,
         });
     } catch (error) {
+        console.error('Update order error:', error);
         next(error);
     }
 };
