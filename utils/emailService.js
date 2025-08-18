@@ -251,34 +251,95 @@ class EmailService {
         // Generate delivery info based on status
         let deliveryInfo = '';
         if (newStatus === 'out_for_delivery' || newStatus === 'delivered') {
+            // Include dispatch details if available
+            let dispatchDetailsHTML = '';
+            if (orderDetails.dispatchDetails) {
+                const deliveryTime = orderDetails.dispatchDetails.estimatedDeliveryTime 
+                    ? new Date(orderDetails.dispatchDetails.estimatedDeliveryTime).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : 'N/A';
+
+                dispatchDetailsHTML = `
+                    <p style="margin: 5px 0; color: #555;">
+                        <strong>Delivery Person:</strong> ${orderDetails.dispatchDetails.deliveryPersonName}
+                    </p>
+                    <p style="margin: 5px 0; color: #555;">
+                        <strong>Contact:</strong> <a href="tel:${orderDetails.dispatchDetails.deliveryPersonPhone}" style="color: #4a90e2;">${orderDetails.dispatchDetails.deliveryPersonPhone}</a>
+                    </p>
+                    ${orderDetails.dispatchDetails.vehicleNumber ? `
+                    <p style="margin: 5px 0; color: #555;">
+                        <strong>Vehicle:</strong> ${orderDetails.dispatchDetails.vehicleNumber}
+                    </p>
+                    ` : ''}
+                    <p style="margin: 5px 0; color: #555;">
+                        <strong>Expected Delivery:</strong> ${deliveryTime}
+                    </p>
+                    ${orderDetails.dispatchDetails.trackingNumber ? `
+                    <p style="margin: 5px 0; color: #555;">
+                        <strong>Tracking ID:</strong> <span style="background: #f0f8ff; padding: 2px 6px; border-radius: 3px; font-family: monospace;">${orderDetails.dispatchDetails.trackingNumber}</span>
+                    </p>
+                    ` : ''}
+                `;
+            }
+            
             deliveryInfo = `
                 <p style="margin: 5px 0; color: #555;">
                     <strong>Delivery Address:</strong> ${orderDetails.deliveryAddress.street}, ${orderDetails.deliveryAddress.area}, ${orderDetails.deliveryAddress.city}
                 </p>
+                ${dispatchDetailsHTML}
             `;
         }
 
         // Generate next steps info
         let nextStepsInfo = '';
         if (newStatus === 'out_for_delivery') {
+            const deliveryPersonName = orderDetails.dispatchDetails?.deliveryPersonName || 'our delivery partner';
+            const hasTrackingNumber = orderDetails.dispatchDetails?.trackingNumber;
+            
             nextStepsInfo = `
                 <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                    <h4 style="margin: 0 0 10px 0; color: #1976d2;">📱 What's Next?</h4>
+                    <h4 style="margin: 0 0 10px 0; color: #1976d2;">🚛 Your Order is On the Way!</h4>
+                    <p style="margin: 0 0 15px 0; color: #555;">
+                        ${deliveryPersonName} is heading to your location with your medicines.
+                    </p>
                     <ul style="margin: 0; padding-left: 20px; color: #555;">
-                        <li>Our delivery partner will contact you shortly</li>
-                        <li>Please keep your phone accessible</li>
-                        <li>Have exact change ready for COD orders</li>
+                        <li>The delivery person will contact you before arrival</li>
+                        <li>Please keep your phone accessible (${orderDetails.deliveryAddress.phone})</li>
+                        ${orderDetails.payment.method === 'cod' ? '<li>Keep exact change ready for Cash on Delivery</li>' : ''}
                         <li>Ensure someone is available at the delivery address</li>
+                        ${hasTrackingNumber ? '<li>Use your tracking ID for real-time updates</li>' : ''}
+                        <li>Contact our support if you need to reschedule</li>
                     </ul>
                 </div>
             `;
         } else if (newStatus === 'delivered') {
+            const deliveryTime = new Date().toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
             nextStepsInfo = `
                 <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                    <h4 style="margin: 0 0 10px 0; color: #2e7d32;">🙏 Thank You!</h4>
-                    <p style="margin: 0; color: #555;">
-                        We hope you're satisfied with your order. If you have any issues or feedback, 
-                        please don't hesitate to contact our support team.
+                    <h4 style="margin: 0 0 10px 0; color: #2e7d32;">🎉 Order Successfully Delivered!</h4>
+                    <p style="margin: 0 0 15px 0; color: #555;">
+                        Your medicines have been delivered at <strong>${deliveryTime}</strong>. 
+                        We hope you're satisfied with our service!
+                    </p>
+                    <h4 style="margin: 10px 0 5px 0; color: #2e7d32;">💊 Medicine Safety Reminders:</h4>
+                    <ul style="margin: 0; padding-left: 20px; color: #555; font-size: 14px;">
+                        <li>Check expiry dates before use</li>
+                        <li>Store medicines as per instructions</li>
+                        <li>Follow prescribed dosage</li>
+                        <li>Contact your doctor if you have side effects</li>
+                    </ul>
+                    <p style="margin: 15px 0 0 0; color: #555; font-size: 14px;">
+                        <strong>Need help?</strong> Our pharmacists are available 24/7 for any medicine-related queries.
                     </p>
                 </div>
             `;

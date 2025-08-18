@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Order Update - {{orderNumber}} | {{appName}}</title>
+    <title>Order Update - {{statusTitle}} | {{appName}}</title>
     <style>
       body {
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -32,7 +32,6 @@
         font-weight: 600;
       }
       .status-badge {
-        background: {{statusColor}};
         color: white;
         padding: 8px 16px;
         border-radius: 20px;
@@ -44,9 +43,30 @@
       .content {
         padding: 30px;
       }
+      .section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid #eee;
+      }
+      .section:last-child {
+        border-bottom: none;
+        margin-bottom: 0;
+      }
+      .section-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+      }
+      .section-title::before {
+        content: "•";
+        color: #4a90e2;
+        font-weight: bold;
+        margin-right: 10px;
+      }
       .status-update {
-        background: {{statusBgColor}};
-        border: 2px solid {{statusColor}};
         border-radius: 8px;
         padding: 20px;
         margin: 20px 0;
@@ -56,6 +76,87 @@
         font-size: 48px;
         margin-bottom: 15px;
       }
+      .status-title-large {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .status-message {
+        font-size: 16px;
+        color: #555;
+        margin: 0;
+      }
+      .order-info {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #4a90e2;
+        margin: 20px 0;
+      }
+      .order-info-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 8px 0;
+        color: #555;
+      }
+      .order-info-row strong {
+        color: #333;
+      }
+      .delivery-section {
+        background: #e8f5e8;
+        border: 1px solid #4caf50;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+      .delivery-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #2e7d32;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+      }
+      .delivery-title::before {
+        content: "🚛";
+        margin-right: 8px;
+        font-size: 18px;
+      }
+      .delivery-info p {
+        margin: 5px 0;
+        color: #2e7d32;
+        font-size: 14px;
+      }
+      .delivery-info strong {
+        color: #1b5e20;
+      }
+      .next-steps-section {
+        background: #fff3cd;
+        border: 1px solid #ffeaa7;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+      .next-steps-section h4 {
+        margin: 0 0 15px 0;
+        color: #856404;
+        font-size: 16px;
+      }
+      .next-steps-section p,
+      .next-steps-section ul {
+        color: #856404;
+        margin: 10px 0;
+      }
+      .next-steps-section ul {
+        padding-left: 20px;
+      }
+      .next-steps-section li {
+        margin: 5px 0;
+      }
+      .cta-buttons {
+        text-align: center;
+        margin: 30px 0;
+      }
       .cta-button {
         display: inline-block;
         background: #4a90e2;
@@ -64,17 +165,33 @@
         padding: 12px 24px;
         border-radius: 5px;
         font-weight: 600;
-        margin: 20px 10px;
+        margin: 5px 10px;
         font-size: 14px;
+      }
+      .cta-button.secondary {
+        background: #6c757d;
       }
       .cta-button:hover {
         opacity: 0.9;
       }
-      .order-info {
+      .help-section {
         background: #f8f9fa;
-        padding: 15px;
+        padding: 20px;
         border-radius: 8px;
-        margin: 20px 0;
+        margin-top: 30px;
+      }
+      .help-section h4 {
+        margin: 0 0 10px 0;
+        color: #333;
+      }
+      .help-section p {
+        margin: 0;
+        color: #555;
+        font-size: 14px;
+      }
+      .help-section a {
+        color: #4a90e2;
+        text-decoration: none;
       }
       .footer {
         background: #f8f9fa;
@@ -82,6 +199,14 @@
         text-align: center;
         color: #666;
         font-size: 14px;
+      }
+      .footer-links {
+        margin: 15px 0;
+      }
+      .footer-links a {
+        color: #4a90e2;
+        text-decoration: none;
+        margin: 0 10px;
       }
       @media only screen and (max-width: 600px) {
         .container {
@@ -98,6 +223,16 @@
           margin: 5px 0;
           box-sizing: border-box;
         }
+        .order-info-row {
+          flex-direction: column;
+          margin-bottom: 10px;
+        }
+        .status-icon {
+          font-size: 36px;
+        }
+        .status-title-large {
+          font-size: 20px;
+        }
       }
     </style>
   </head>
@@ -111,54 +246,57 @@
           style="max-height: 50px; margin-bottom: 15px"
         />
         <h1>Order Update</h1>
-        <div class="status-badge">{{statusText}}</div>
+        <div class="status-badge">{{statusTitle}}</div>
       </div>
 
       <div class="content">
-        <!-- Status Update -->
-        <div class="status-update">
-          <div class="status-icon">{{statusIcon}}</div>
-          <h2 style="margin: 0 0 10px 0; color: #333;">{{statusTitle}}</h2>
-          <p style="margin: 0; color: #555; font-size: 16px;">{{statusMessage}}</p>
-        </div>
-
         <!-- Greeting -->
-        <div style="margin-bottom: 25px;">
-          <h3 style="color: #333; margin: 0 0 10px 0;">Hello {{userName}}!</h3>
-          <p style="color: #555; margin: 0;">
-            Your order status has been updated. Here are the latest details:
-          </p>
+        <div style="margin-bottom: 25px">
+          <h2 style="color: #333; margin: 0 0 10px 0">Hello {{userName}}!</h2>
+          <p style="color: #555; margin: 0">{{statusMessage}}</p>
         </div>
 
         <!-- Order Info -->
-        <div class="order-info">
-          <h4 style="margin: 0 0 10px 0; color: #333;">Order Details</h4>
-          <p style="margin: 5px 0; color: #555;">
-            <strong>Order Number:</strong> #{{orderNumber}}
-          </p>
-          <p style="margin: 5px 0; color: #555;">
-            <strong>Order Date:</strong> {{orderDate}}
-          </p>
-          <p style="margin: 5px 0; color: #555;">
-            <strong>Total Amount:</strong> Rs. {{totalAmount}}
-          </p>
-          {{deliveryInfo}}
+        <div class="section">
+          <div class="section-title">Order Details</div>
+          <div class="order-info">
+            <div class="order-info-row">
+              <span><strong>Order Number:</strong></span>
+              <span>#{{orderNumber}}</span>
+            </div>
+            <div class="order-info-row">
+              <span><strong>Order Date:</strong></span>
+              <span>{{orderDate}}</span>
+            </div>
+            <div class="order-info-row">
+              <span><strong>Total Amount:</strong></span>
+              <span style="color: #4caf50; font-weight: 600"
+                >Rs. {{totalAmount}}</span
+              >
+            </div>
+          </div>
         </div>
+
+        {{deliveryInfo}}
 
         <!-- Next Steps -->
         {{nextStepsInfo}}
 
         <!-- CTA Buttons -->
-        <div style="text-align: center; margin: 30px 0;">
+        <div class="cta-buttons">
           <a href="{{trackingUrl}}" class="cta-button">Track Your Order</a>
+          <a href="{{websiteUrl}}" class="cta-button secondary"
+            >Continue Shopping</a
+          >
         </div>
 
-        <!-- Contact Info -->
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 30px;">
-          <h4 style="margin: 0 0 10px 0; color: #333;">Need Help?</h4>
-          <p style="margin: 0; color: #555; font-size: 14px;">
-            <strong>Customer Support:</strong> {{supportPhone}}<br>
-            <strong>Email:</strong> <a href="mailto:{{supportEmail}}" style="color: #4a90e2;">{{supportEmail}}</a><br>
+        <!-- Help Section -->
+        <div class="help-section">
+          <h4>Need Help?</h4>
+          <p>
+            <strong>Customer Support:</strong> {{supportPhone}}<br />
+            <strong>Email:</strong>
+            <a href="mailto:{{supportEmail}}">{{supportEmail}}</a><br />
             <strong>Hours:</strong> 24/7 Support Available
           </p>
         </div>
@@ -167,8 +305,13 @@
       <!-- Footer -->
       <div class="footer">
         <p><strong>{{appName}}</strong> - Your Health, Our Priority</p>
-        <p style="margin-top: 15px; font-size: 12px; color: #999;">
-          This email was sent to update you about your order with {{appName}}. 
+        <div class="footer-links">
+          <a href="{{websiteUrl}}/track">Track Order</a> |
+          <a href="{{websiteUrl}}/orders">Order History</a> |
+          <a href="{{websiteUrl}}/contact">Contact Us</a>
+        </div>
+        <p style="margin-top: 15px; font-size: 12px; color: #999">
+          This email was sent to update you about your order with {{appName}}.
           If you have any questions, please contact our support team.
         </p>
       </div>

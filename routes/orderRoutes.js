@@ -5,6 +5,7 @@ const {
     createOrder,
     getUserOrders,
     getOrder,
+    updateOrder,
     updateOrderStatus,
     cancelOrder,
     verifyPrescription,
@@ -78,18 +79,9 @@ router.put('/:id/verify-prescription', protect, authorize('admin', 'pharmacist')
 // PUT /api/orders/:id/assign-delivery
 router.put('/:id/assign-delivery', protect, authorize('admin'), assignDeliveryPerson);
 
-// ==========================================
-// TEST ROUTES (Remove in production)
-// ==========================================
+// General update order (Admin only)
+// PUT /api/orders/:id
+router.put('/:id', protect, authorize('admin', 'pharmacist'), updateOrder);
 
-// Test endpoint for debugging
-router.post('/test', (req, res) => {
-    console.log('Test endpoint body:', req.body);
-    res.json({
-        success: true,
-        receivedBody: req.body,
-        headers: req.headers['content-type']
-    });
-});
 
 module.exports = router;

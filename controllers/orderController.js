@@ -166,6 +166,8 @@ exports.createOrder = async (req, res, next) => {
             })),
             hasPrescriptionItems,
             prescriptionStatus: hasPrescriptionItems ? 'pending_verification' : 'not_required',
+            // Set initial status: confirmed for OTC orders, pending for prescription orders
+            status: hasPrescriptionItems ? 'pending' : 'confirmed',
             deliveryAddress: {
                 name: deliveryAddress.name || (userId ? req.user.name : guestDetails.name),
                 phone: deliveryAddress.phone || (userId ? req.user.phone : guestDetails.phone),
@@ -189,6 +191,26 @@ exports.createOrder = async (req, res, next) => {
         };
 
         const order = new Order(orderData);
+
+        // Add initial status to history
+        if (!hasPrescriptionItems) {
+            // For OTC orders, add both pending and confirmed status to history
+            order.statusHistory.push({
+                status: 'pending',
+                notes: 'Order created - No prescription verification required'
+            });
+            order.statusHistory.push({
+                status: 'confirmed',
+                notes: 'Order automatically confirmed - OTC products only'
+            });
+        } else {
+            // For prescription orders, just add pending status
+            order.statusHistory.push({
+                status: 'pending',
+                notes: 'Order created - Awaiting prescription verification'
+            });
+        }
+
         await order.save();
 
         // Convert cart stock reservations to order stock reservations
@@ -279,7 +301,9 @@ exports.getOrder = async (req, res, next) => {
             .populate('items.product')
             .populate('customer.user', 'name email phone')
             .populate('delivery.assignedTo', 'name phone')
-            .populate('statusHistory.changedBy', 'name');
+            .populate('statusHistory.changedBy', 'name')
+            .populate('prescriptions.verifiedBy', 'name')
+            .populate('dispatchDetails.dispatchedBy', 'name');
 
         if (!order) {
             return res.status(404).json({
@@ -505,6 +529,9 @@ exports.getAllOrders = async (req, res, next) => {
             .populate('items.product', 'name brand')
             .populate('customer.user', 'name email phone')
             .populate('delivery.assignedTo', 'name phone')
+            .populate('statusHistory.changedBy', 'name')
+            .populate('prescriptions.verifiedBy', 'name')
+            .populate('dispatchDetails.dispatchedBy', 'name')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
@@ -789,7 +816,8 @@ exports.trackOrder = async (req, res, next) => {
                 status: h.status,
                 changedAt: h.changedAt,
                 notes: h.notes
-            }))
+            })),
+            dispatchDetails: order.dispatchDetails
         };
 
         res.status(200).json({
@@ -797,6 +825,103 @@ exports.trackOrder = async (req, res, next) => {
             data: trackingInfo
         });
     } catch (error) {
+        next(error);
+    }
+};
+
+// @desc    Update order (General admin update)
+// @route   PUT /api/orders/:id
+// @access  Private (Admin/Pharmacist only)
+exports.updateOrder = async (req, res, next) => {
+    try {
+        const order = await Order.findById(req.params.id);
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        const { status, payment, delivery, notes, customerSignature } = req.body;
+        const originalStatus = order.status; // Store original status for email comparison
+
+        // Update status if provided and different from current
+        if (status && status !== order.status) {
+            console.log(`Updating status from ${order.status} to ${status}`);
+            await order.updateStatus(status, req.user.id, notes || `Order status updated to ${status}`);
+        } else if (status === order.status) {
+            console.log(`Status ${status} is the same as current status, skipping update`);
+        }
+
+        // Update payment if provided
+        if (payment) {
+            if (payment.status) order.payment.status = payment.status;
+            if (payment.paidAt) order.payment.paidAt = payment.paidAt;
+        }
+
+        // Update delivery if provided
+        if (delivery) {
+            if (delivery.assignedTo) {
+                order.delivery.assignedTo = delivery.assignedTo;
+            }
+            if (delivery.estimatedDeliveryTime) {
+                order.delivery.estimatedDeliveryTime = delivery.estimatedDeliveryTime;
+            }
+        }
+
+        // Handle customer signature upload
+        if (customerSignature && req.file) {
+            order.customerSignature = req.file.path;
+        }
+
+        await order.save();
+
+        // Return populated order
+        const updatedOrder = await Order.findById(order._id)
+            .populate('items.product', 'name brand')
+            .populate('customer.user', 'name email phone')
+            .populate('delivery.assignedTo', 'name phone')
+            .populate('statusHistory.changedBy', 'name')
+            .populate('prescriptions.verifiedBy', 'name')
+            .populate('dispatchDetails.dispatchedBy', 'name');
+
+        // Send status update email if status was changed
+        if (status && status !== originalStatus) {
+            console.log(`=== EMAIL NOTIFICATION DEBUG ===`);
+            console.log(`Status changed from ${originalStatus} to ${status}`);
+            console.log(`Order ID: ${updatedOrder._id}`);
+            console.log(`Order Number: ${updatedOrder.orderNumber}`);
+            try {
+                const emailService = require('../utils/emailService');
+                const customerEmail = updatedOrder.customer.user?.email ||
+                    updatedOrder.customer.guestDetails?.email;
+                console.log(`Customer email: ${customerEmail}`);
+                console.log(`Customer user object:`, updatedOrder.customer.user);
+                console.log(`Customer guest details:`, updatedOrder.customer.guestDetails);
+
+                if (customerEmail) {
+                    console.log(`Sending ${status} email to ${customerEmail}...`);
+                    await emailService.sendOrderStatusUpdate(customerEmail, updatedOrder, status, notes);
+                    console.log(`✅ Status update email sent to ${customerEmail} for order ${updatedOrder.orderNumber} - Status: ${status}`);
+                } else {
+                    console.log(`❌ No customer email found - cannot send notification`);
+                }
+            } catch (emailError) {
+                console.error('❌ Error sending status update email:', emailError);
+                // Don't fail the update if email fails
+            }
+        } else {
+            console.log(`No status change detected - Original: ${originalStatus}, New: ${status}`);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Order updated successfully',
+            data: updatedOrder
+        });
+    } catch (error) {
+        console.error('Update order error:', error);
         next(error);
     }
 };

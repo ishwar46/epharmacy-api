@@ -234,21 +234,24 @@
 
       <div class="content">
         <!-- Greeting -->
-        <div style="margin-bottom: 25px;">
-          <h2 style="color: #333; margin: 0 0 10px 0;">Hello {{userName}}!</h2>
-          <p style="color: #555; margin: 0;">
-            Thank you for your order. We've received your order and it's being processed. 
-            You'll receive updates as your order progresses.
+        <div style="margin-bottom: 25px">
+          <h2 style="color: #333; margin: 0 0 10px 0">Hello {{userName}}!</h2>
+          <p style="color: #555; margin: 0">
+            Thank you for your order. We've received your order and it's being
+            processed. You'll receive updates as your order progresses.
           </p>
         </div>
 
         <!-- Status Info -->
         <div class="status-info">
-          <div style="display: flex; align-items: center;">
+          <div style="display: flex; align-items: center">
             <span class="status-icon">✓</span>
             <div>
-              <strong style="color: #2e7d32;">Order Placed Successfully</strong><br>
-              <small style="color: #555;">We'll send you updates as your order progresses</small>
+              <strong style="color: #2e7d32">Order Placed Successfully</strong
+              ><br />
+              <small style="color: #555"
+                >We'll send you updates as your order progresses</small
+              >
             </div>
           </div>
         </div>
@@ -276,17 +279,19 @@
           <div class="section-title">Order Summary</div>
           <table class="pricing-table">
             <tr>
-              <td style="color: #666;">Subtotal ({{itemCount}} items)</td>
-              <td style="text-align: right;">Rs. {{subtotal}}</td>
+              <td style="color: #666">Subtotal ({{itemCount}} items)</td>
+              <td style="text-align: right">Rs. {{subtotal}}</td>
             </tr>
             <tr>
-              <td style="color: #666;">Delivery Fee</td>
-              <td style="text-align: right;">Rs. {{deliveryFee}}</td>
+              <td style="color: #666">Delivery Fee</td>
+              <td style="text-align: right">Rs. {{deliveryFee}}</td>
             </tr>
             {{taxRow}}
             <tr class="total-row">
-              <td style="color: #333;">Total Amount</td>
-              <td style="text-align: right; color: #4caf50; font-size: 18px;">Rs. {{totalAmount}}</td>
+              <td style="color: #333">Total Amount</td>
+              <td style="text-align: right; color: #4caf50; font-size: 18px">
+                Rs. {{totalAmount}}
+              </td>
             </tr>
           </table>
         </div>
@@ -295,9 +300,9 @@
         <div class="section">
           <div class="section-title">Delivery Address</div>
           <div class="address-box">
-            <strong>{{deliveryAddress.name}}</strong><br>
-            {{deliveryAddress.street}}<br>
-            {{deliveryAddress.area}}, {{deliveryAddress.city}}<br>
+            <strong>{{deliveryAddress.name}}</strong><br />
+            {{deliveryAddress.street}}<br />
+            {{deliveryAddress.area}}, {{deliveryAddress.city}}<br />
             {{landmarkInfo}}
             <strong>Phone:</strong> {{deliveryAddress.phone}}
           </div>
@@ -306,8 +311,8 @@
         <!-- Payment Information -->
         <div class="section">
           <div class="section-title">Payment Information</div>
-          <p style="margin: 0; color: #555;">
-            <strong>Payment Method:</strong> 
+          <p style="margin: 0; color: #555">
+            <strong>Payment Method:</strong>
             {{paymentMethodText}}
           </p>
           {{codNote}}
@@ -319,15 +324,27 @@
         <!-- CTA Buttons -->
         <div class="cta-buttons">
           <a href="{{trackingUrl}}" class="cta-button">Track Your Order</a>
-          <a href="{{websiteUrl}}" class="cta-button secondary">Continue Shopping</a>
+          <a href="{{websiteUrl}}" class="cta-button secondary"
+            >Continue Shopping</a
+          >
         </div>
 
         <!-- Contact Info -->
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-top: 30px;">
-          <h4 style="margin: 0 0 10px 0; color: #333;">Need Help?</h4>
-          <p style="margin: 0; color: #555; font-size: 14px;">
-            <strong>Customer Support:</strong> {{supportPhone}}<br>
-            <strong>Email:</strong> <a href="mailto:{{supportEmail}}" style="color: #4a90e2;">{{supportEmail}}</a><br>
+        <div
+          style="
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 30px;
+          "
+        >
+          <h4 style="margin: 0 0 10px 0; color: #333">Need Help?</h4>
+          <p style="margin: 0; color: #555; font-size: 14px">
+            <strong>Customer Support:</strong> {{supportPhone}}<br />
+            <strong>Email:</strong>
+            <a href="mailto:{{supportEmail}}" style="color: #4a90e2"
+              >{{supportEmail}}</a
+            ><br />
             <strong>Hours:</strong> 24/7 Support Available
           </p>
         </div>
@@ -341,11 +358,11 @@
           <a href="{{websiteUrl}}/orders">Order History</a> |
           <a href="{{websiteUrl}}/contact">Contact Us</a>
         </div>
-        <p style="margin-top: 15px; font-size: 12px; color: #999;">
-          This email was sent to confirm your order with {{appName}}. 
-          If you have any questions about this order, please contact our support team.
+        <p style="margin-top: 15px; font-size: 12px; color: #999">
+          This email was sent to confirm your order with {{appName}}. If you
+          have any questions about this order, please contact our support team.
         </p>
-        <p style="font-size: 11px; color: #ccc; margin-top: 10px;">
+        <p style="font-size: 11px; color: #ccc; margin-top: 10px">
           Order Date: {{orderDate}} | Estimated Delivery: {{estimatedDelivery}}
         </p>
       </div>

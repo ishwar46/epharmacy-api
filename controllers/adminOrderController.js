@@ -1,4 +1,5 @@
 const Order = require('../models/Order');
+const emailService = require('../utils/emailService');
 
 // Get all orders
 // getAllOrders: filtering by user's email
@@ -89,13 +90,13 @@ exports.updateOrder = async (req, res, next) => {
         if (prescriptionVerification) {
             const { action, prescriptionId, notes, rejectionReason } = prescriptionVerification;
             console.log('Prescription verification:', prescriptionVerification);
-            
+
             // Find the prescription in the order
             const prescription = order.prescriptions.id(prescriptionId);
             if (!prescription) {
-                return res.status(404).json({ 
-                    success: false, 
-                    message: "Prescription not found in order" 
+                return res.status(404).json({
+                    success: false,
+                    message: "Prescription not found in order"
                 });
             }
 
@@ -104,22 +105,22 @@ exports.updateOrder = async (req, res, next) => {
                 prescription.verifiedAt = new Date();
                 prescription.verifiedBy = req.user.id; // Assuming auth middleware sets req.user
                 if (notes) prescription.verificationNotes = notes;
-                
+
                 // Update overall prescription status
                 const allPrescriptionsVerified = order.prescriptions.every(p => p.verified);
                 if (allPrescriptionsVerified) {
                     order.prescriptionStatus = 'verified';
                 }
-                
+
                 console.log('Prescription approved');
             } else if (action === 'reject') {
                 prescription.verified = false;
                 prescription.rejectionReason = rejectionReason;
                 if (notes) prescription.verificationNotes = notes;
-                
+
                 // Update overall prescription status to rejected
                 order.prescriptionStatus = 'rejected';
-                
+
                 console.log('Prescription rejected');
             }
         }
@@ -127,7 +128,7 @@ exports.updateOrder = async (req, res, next) => {
         // Handle packing details
         if (packingDetails) {
             console.log('Packing details:', packingDetails);
-            
+
             // Store packing information
             order.packingDetails = {
                 packedAt: packingDetails.packedAt ? new Date(packingDetails.packedAt) : new Date(),
@@ -140,14 +141,14 @@ exports.updateOrder = async (req, res, next) => {
                 fragileItems: packingDetails.fragileItems || false,
                 coldStorage: packingDetails.coldStorage || false
             };
-            
+
             console.log('Order packed successfully');
         }
 
         // Handle dispatch details
         if (dispatchDetails) {
             console.log('Dispatch details:', dispatchDetails);
-            
+
             // Store dispatch information
             order.dispatchDetails = {
                 dispatchedAt: dispatchDetails.dispatchedAt ? new Date(dispatchDetails.dispatchedAt) : new Date(),
@@ -164,7 +165,7 @@ exports.updateOrder = async (req, res, next) => {
 
             // Update legacy tracking number field
             order.trackingNumber = dispatchDetails.trackingNumber;
-            
+
             // Update delivery information for backward compatibility
             // Ensure delivery object exists
             if (!order.delivery) {
@@ -178,7 +179,7 @@ exports.updateOrder = async (req, res, next) => {
             if (dispatchDetails.estimatedDeliveryTime) {
                 order.delivery.estimatedDeliveryTime = new Date(dispatchDetails.estimatedDeliveryTime);
             }
-            
+
             console.log('Order dispatched successfully');
         }
 
@@ -186,6 +187,9 @@ exports.updateOrder = async (req, res, next) => {
         if (trackingNumber) {
             order.trackingNumber = trackingNumber;
         }
+
+        // Store original status for email comparison
+        const originalStatus = order.status;
 
         // Update status if provided
         if (status) {
@@ -230,6 +234,34 @@ exports.updateOrder = async (req, res, next) => {
 
         await order.save();
         await order.populate('customer.user', 'name email phone');
+
+        // Send status update email if status was changed
+        if (status && status !== originalStatus) {
+            console.log(`=== ADMIN EMAIL NOTIFICATION DEBUG ===`);
+            console.log(`Status changed from ${originalStatus} to ${status}`);
+            console.log(`Order ID: ${order._id}`);
+            console.log(`Order Number: ${order.orderNumber}`);
+            try {
+                const customerEmail = order.customer.user?.email ||
+                    order.customer.guestDetails?.email;
+                console.log(`Customer email: ${customerEmail}`);
+                console.log(`Customer user object:`, order.customer.user);
+                console.log(`Customer guest details:`, order.customer.guestDetails);
+
+                if (customerEmail) {
+                    console.log(`Sending ${status} email to ${customerEmail}...`);
+                    await emailService.sendOrderStatusUpdate(customerEmail, order, status, '');
+                    console.log(`✅ Status update email sent to ${customerEmail} for order ${order.orderNumber} - Status: ${status}`);
+                } else {
+                    console.log(`❌ No customer email found - cannot send notification`);
+                }
+            } catch (emailError) {
+                console.error('❌ Error sending status update email:', emailError);
+                // Don't fail the update if email fails
+            }
+        } else {
+            console.log(`No status change detected - Original: ${originalStatus}, New: ${status}`);
+        }
 
         res.status(200).json({
             success: true,
