@@ -23,4 +23,38 @@ router.put('/users/:userId', protect, authorize('admin'), updateUserByAdmin);
 // Delete user by admin
 router.delete('/users/:userId', protect, authorize('admin'), deleteUserByAdmin);
 
+// Hero Banner Management Routes
+const {
+  getAllSlides,
+  createSlide,
+  updateSlide,
+  deleteSlide,
+  reorderSlides,
+  getAllFeatures,
+  createFeature,
+  updateFeature,
+  deleteFeature,
+  reorderFeatures,
+  getConfig,
+  updateConfig
+} = require('../controllers/heroBannerController');
+
+// Hero Banner - Slides management
+router.get('/hero-banner/slides', protect, authorize('admin'), getAllSlides);
+router.post('/hero-banner/slides', protect, authorize('admin'), createSlide);
+router.put('/hero-banner/slides/:id', protect, authorize('admin'), updateSlide);
+router.delete('/hero-banner/slides/:id', protect, authorize('admin'), deleteSlide);
+router.post('/hero-banner/slides/reorder', protect, authorize('admin'), reorderSlides);
+
+// Hero Banner - Features management
+router.get('/hero-banner/features', protect, authorize('admin'), getAllFeatures);
+router.post('/hero-banner/features', protect, authorize('admin'), createFeature);
+router.put('/hero-banner/features/:id', protect, authorize('admin'), updateFeature);
+router.delete('/hero-banner/features/:id', protect, authorize('admin'), deleteFeature);
+router.post('/hero-banner/features/reorder', protect, authorize('admin'), reorderFeatures);
+
+// Hero Banner - Configuration management
+router.get('/hero-banner/config', protect, authorize('admin'), getConfig);
+router.put('/hero-banner/config', protect, authorize('admin'), updateConfig);
+
 module.exports = router;

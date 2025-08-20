@@ -18,6 +18,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const adminOrderRoutes = require('./routes/adminOrders');
 const userRoutes = require('./routes/user');
 const prescriptionRoutes = require('./routes/prescriptions');
+const heroBannerRoutes = require('./routes/heroBanner');
 
 // Import the new cron jobs (this will start them automatically)
 const cronJobs = require('./jobs/cronJobs');
@@ -102,6 +103,7 @@ app.use('/api/cart', publicLimiter, cartRoutes); // Lenient for cart operations
 app.use('/api/admin/orders', limiter, adminOrderRoutes);
 app.use('/api/user', publicLimiter, userRoutes); // Lenient for user operations
 app.use('/api/prescriptions', limiter, prescriptionRoutes);
+app.use('/api/hero-banner', heroBannerRoutes); // Public endpoint for banner data
 
 // Serve static files after API routes
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
