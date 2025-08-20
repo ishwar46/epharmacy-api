@@ -1,6 +1,7 @@
 require('dotenv').config();
 const connectToDatabase = require('./database/db');
 const { seedHeroBanner } = require('./seeds/heroBannerSeeds');
+const { seedPromoBannerData } = require('./seeds/promoBannerSeeds');
 
 const runSeeds = async () => {
   try {
@@ -12,6 +13,7 @@ const runSeeds = async () => {
     
     // Run seeds
     await seedHeroBanner();
+    await seedPromoBannerData();
     
     console.log('🎉 All seeds completed successfully');
     process.exit(0);
